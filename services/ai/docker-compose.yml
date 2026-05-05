@@ -1,0 +1,21 @@
+services:
+  ai:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DEVICE=cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  ai-cpu:
+    build: .
+    ports:
+      - "8001:8000"
+    environment:
+      - DEVICE=cpu
