@@ -52,3 +52,15 @@ models/
 # Logs
 *.log
 logs/
+
+# Docker volumes (large data)
+volumes/
+
+# Milvus
+milvus/
+
+# Ollama models (large)
+~/.ollama/
+
+# PyTorch (large cached models)
+.cache/

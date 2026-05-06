@@ -71,10 +71,11 @@ async def caption_image(
 @router.post("/ocr", response_model=OCRResponse)
 async def extract_text(
     file: UploadFile = File(...),
-    ocr: PaddleOCRProcessor = Depends(get_ocr)
+    ocr: PaddleOCRProcessor = Depends(get_ocr),
+    engine: str = "paddleocr"
 ):
     image = await load_image(file)
-    return await ocr.extract_text(image)
+    return await ocr.extract_text(image, engine=engine)
 
 
 @router.post("/analyze")

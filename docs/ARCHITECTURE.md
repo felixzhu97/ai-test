@@ -19,15 +19,34 @@ The AI Vision Service is a full-stack application with a microservices-inspired 
 │               (Optional - Utility Endpoints)                    │
 └─────────────────────────────────────────────────────────────────┘
                                   │
-                                  ▼
+                    ┌─────────────┴─────────────┐
+                    ▼                           ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      AI Service Layer                           │
-│                    (FastAPI + Python)                           │
-│                       Port: 8000                                │
+│                    AI Service Layer                              │
+│                 (FastAPI + Python)                              │
+│                      Port: 8000                                 │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │
 │  │     YOLO     │  │     BLIP     │  │      PaddleOCR       │ │
 │  │   Detector   │  │  Captioner   │  │      Processor       │ │
 │  └──────────────┘  └──────────────┘  └──────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    RAG Service Layer                             │
+│                 (FastAPI + Python)                              │
+│                      Port: 8001                                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │
+│  │   Document   │  │   Embedding  │  │      LLM Gateway     │ │
+│  │    Loader    │  │    Model     │  │ (OpenAI/Claude/Ollama)│ │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   Qdrant Vector Store                             │
+│                      Port: 6333                                   │
+│         (Semantic Search & Document Storage)                      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -69,6 +88,29 @@ The core FastAPI application providing vision AI capabilities.
 - Model inference (YOLO, BLIP, PaddleOCR)
 - REST API endpoints
 - Response serialization
+
+### 4. RAG Service (`services/rag`)
+
+A production-grade RAG (Retrieval-Augmented Generation) service.
+
+**Responsibilities:**
+- Document ingestion and processing
+- Semantic vector search with Qdrant
+- LLM-powered question answering
+- Conversation history management
+
+**Tech Stack:**
+- FastAPI + Python 3.10+
+- Qdrant vector database
+- LangChain for RAG orchestration
+- Sentence Transformers for embeddings
+- Support for OpenAI, Anthropic Claude, Ollama
+
+**Features:**
+- Multi-format document support (PDF, Markdown, Web, Text)
+- Streaming responses
+- Session-based chat history
+- Docker-ready deployment
 
 ## Data Flow
 
@@ -165,23 +207,46 @@ ai-test/
 │   ├── config/                 # Shared TypeScript config
 │   └── utils/                 # Shared utilities
 ├── services/
-│   └── vision-service/                    # Python AI service
+│   ├── vision-service/         # Python AI vision service
+│   │   ├── src/
+│   │   │   ├── main.py        # FastAPI app entry
+│   │   │   ├── api/
+│   │   │   │   └── vision.py  # Vision API routes
+│   │   │   ├── models/
+│   │   │   │   ├── yolo_detector.py
+│   │   │   │   ├── blip_captioner.py
+│   │   │   │   └── paddle_ocr.py
+│   │   │   ├── schemas/
+│   │   │   │   └── vision.py  # Pydantic models
+│   │   │   └── core/
+│   │   │       └── config.py # Settings
+│   │   ├── tests/
+│   │   │   ├── test_api.py
+│   │   │   ├── test_config.py
+│   │   │   └── test_schemas.py
+│   │   ├── Dockerfile
+│   │   ├── docker-compose.yml
+│   │   └── pyproject.toml
+│   └── rag/                    # RAG service (new)
 │       ├── src/
 │       │   ├── main.py        # FastAPI app entry
+│       │   ├── config.py      # Settings
+│       │   ├── schemas.py     # Pydantic models
 │       │   ├── api/
-│       │   │   └── vision.py  # Vision API routes
-│       │   ├── models/
-│       │   │   ├── yolo_detector.py
-│       │   │   ├── blip_captioner.py
-│       │   │   └── paddle_ocr.py
-│       │   ├── schemas/
-│       │   │   └── vision.py  # Pydantic models
-│       │   └── core/
-│       │       └── config.py # Settings
+│       │   │   ├── documents.py  # Document API
+│       │   │   └── chat.py       # Chat API
+│       │   ├── core/
+│       │   │   ├── llm_gateway.py   # LLM abstraction
+│       │   │   ├── embedding.py    # Embedding model
+│       │   │   └── vector_store.py  # Qdrant integration
+│       │   ├── document_loader/
+│       │   │   └── loader.py       # Document loaders
+│       │   └── services/
+│       │       ├── ingestion.py     # Document ingestion
+│       │       └── rag_chain.py    # RAG chain
 │       ├── tests/
-│       │   ├── test_api.py
-│       │   ├── test_config.py
-│       │   └── test_schemas.py
+│       │   ├── conftest.py
+│       │   └── test_rag_api.py
 │       ├── Dockerfile
 │       ├── docker-compose.yml
 │       └── pyproject.toml

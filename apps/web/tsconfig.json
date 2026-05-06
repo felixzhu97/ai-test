@@ -2,8 +2,10 @@
   "extends": "../../packages/config/tsconfig.base.json",
   "compilerOptions": {
     "jsx": "react-jsx",
+    "jsxImportSource": "@emotion/react",
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "lib": ["ES2022", "DOM"]
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]
