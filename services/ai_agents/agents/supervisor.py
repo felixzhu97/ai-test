@@ -167,6 +167,17 @@ class SupervisorAgent:
             List of agent names to route to.
         """
         task_lower = task.lower()
+        
+        # Special case: "list all available agents" queries - return empty list
+        # to indicate no agent routing needed, just return agent list
+        meta_keywords = [
+            '列出所有', '列出可用', 'list all', 'list available', 'available agents',
+            '所有 agent', '所有智能体', '有哪些 agent', 'show agents', 'what agents',
+            '有哪些', '有什么 agent', '可用 agent'
+        ]
+        if any(kw in task_lower for kw in meta_keywords):
+            return []  # Empty list signals to return agent info directly
+        
         matched_agents = []
         
         for agent_name, keywords in self.AGENT_ROUTING.items():
@@ -262,7 +273,7 @@ class SupervisorAgent:
             self._check_pending_actions,
             {
                 agent_name: agent_name for agent_name in self.agents.keys()
-            }
+            }  # No mapping needed for END - function returns END directly
         )
         
         for agent_name in self.agents.keys():
@@ -277,7 +288,7 @@ class SupervisorAgent:
         pending = state.get("pending_actions", [])
         if pending:
             return pending[0]
-        return None
+        return END  # Return END when no pending actions
     
     def _create_router_node(self):
         """Create the router node that coordinates agent execution."""
@@ -296,6 +307,22 @@ class SupervisorAgent:
             task = str(last_message.content) if hasattr(last_message, 'content') else str(last_message)
             
             target_agents = self._route_to_agent(task)
+            
+            # Special case: meta query (empty target_agents) - return agent list directly
+            if not target_agents:
+                agent_list = ", ".join([
+                    f"{name}: {agent.description}" 
+                    for name, agent in self.agents.items()
+                ])
+                return {
+                    "current_agent": None,
+                    "pending_actions": [],
+                    "task": None,
+                    "messages": state["messages"] + [
+                        AIMessage(content=f"以下是所有可用的 Agent:\n\n{agent_list}")
+                    ],
+                    "agent_results": {}
+                }
             
             return {
                 "current_agent": target_agents[0] if target_agents else None,

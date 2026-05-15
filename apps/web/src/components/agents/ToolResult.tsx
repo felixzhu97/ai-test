@@ -229,6 +229,41 @@ function formatOutput(output: string): React.ReactNode {
     );
   }
 
+  // Detect if content contains structured metrics (key: value format)
+  const hasMetrics = /^[A-Z_]+:|\b(Time Range|Metric|Current Value|Trend|Data Points|Min|Max|Avg)\b:/im.test(trimmed);
+  
+  if (hasMetrics) {
+    // Format as structured metrics display
+    return (
+      <div style={{ lineHeight: 1.6 }}>
+        {trimmed.split('\n').map((line, i) => {
+          const trimmedLine = line.trim();
+          if (!trimmedLine) return <br key={i} />;
+          
+          // Check if it's a key: value line
+          const match = trimmedLine.match(/^([^:]+):\s*(.*)$/);
+          if (match) {
+            return (
+              <div key={i}>
+                <span style={{ color: colors.textSecondary }}>{match[1]}:</span>{' '}
+                <span style={{ fontWeight: match[1].toLowerCase().includes('value') || match[1].toLowerCase().includes('avg') ? '600' : '400' }}>
+                  {match[2]}
+                </span>
+              </div>
+            );
+          }
+          
+          // Check for separator lines (contains only | or -)
+          if (/^[\s|/\\-]+$/.test(trimmedLine)) {
+            return <div key={i} style={{ color: colors.textTertiary, fontFamily: 'monospace' }}>{trimmedLine}</div>;
+          }
+          
+          return <div key={i}>{trimmedLine}</div>;
+        })}
+      </div>
+    );
+  }
+
   // Try to detect and format JSON
   if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
       (trimmed.startsWith('[') && trimmed.endsWith(']'))) {

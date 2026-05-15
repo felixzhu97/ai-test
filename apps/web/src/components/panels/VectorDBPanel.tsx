@@ -17,7 +17,7 @@ export function VectorDBPanel() {
     >
       <AgentChat
         agentInfo={{ name: t.nav.vectordb, description: t.agents.descriptions.vectordb }}
-        apiEndpoint="/api/agents/vectordb/invoke"
+        apiEndpoint="/api/agents/vector/invoke"
         quickPrompts={t.agents.quickPrompts.vectordb}
       />
     </AgentPanel>

@@ -7,9 +7,10 @@ for all specialized agents in the AI infrastructure suite.
 from typing import Any, Dict, List, Optional, TypedDict
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool
+from langchain_core.utils.function_calling import convert_to_openai_function
 
 
 class AgentState(TypedDict):
@@ -80,39 +81,57 @@ class BaseInfraAgent:
         from langgraph.graph import StateGraph, END
         
         workflow = StateGraph(AgentState)
-        workflow.add_node("process", self._create_process_node())
-        workflow.set_entry_point("process")
-        workflow.add_edge("process", END)
+        workflow.add_node("agent", self._create_agent_node())
+        workflow.set_entry_point("agent")
+        workflow.add_edge("agent", END)
         
         return workflow.compile()
     
-    def _create_process_node(self):
-        """Create the main processing node."""
-        def process_node(state: AgentState) -> Dict[str, Any]:
-            """Process the input and generate response."""
+    def _create_agent_node(self):
+        """Create the agent node that handles tool calling."""
+        from langgraph.prebuilt import ToolNode
+        
+        # Create tool node for executing tools
+        tool_node = ToolNode(self.tools) if self.tools else None
+        
+        def agent_node(state: AgentState) -> Dict[str, Any]:
+            """Process messages and handle tool calls."""
             messages = state.get("messages", [])
             if not messages:
                 return {"messages": [], "context": {}}
             
-            # Run the LLM with tools
-            if self.tools:
-                response = self.llm.bind_tools(
-                    self.tools,
-                    tool_choice="auto"
-                ).invoke(
-                    [self._format_system_message()] + messages
-                )
-            else:
-                response = self.llm.invoke(
-                    [self._format_system_message()] + messages
-                )
+            # Get LLM with tools bound
+            llm_with_tools = self.llm.bind_tools(
+                self.tools,
+                tool_choice="auto"
+            )
+            
+            # Invoke LLM
+            response = llm_with_tools.invoke(
+                [self._format_system_message()] + messages
+            )
+            
+            # Check if LLM wants to call tools
+            if hasattr(response, 'tool_calls') and response.tool_calls:
+                # Return response with tool calls - will be handled by ToolNode
+                return {
+                    "messages": [response],
+                    "context": {"agent": self.name, "action": "tool_call"}
+                }
+            
+            # No tool calls - extract clean content
+            content = ""
+            if hasattr(response, 'content'):
+                content = response.content
+            elif isinstance(response, str):
+                content = response
             
             return {
-                "messages": [response],
-                "context": {"agent": self.name}
+                "messages": [AIMessage(content=content)],
+                "context": {"agent": self.name, "action": "response"}
             }
         
-        return process_node
+        return agent_node
     
     def get_runnable(self) -> Runnable:
         """Get the compiled, executable runnable.

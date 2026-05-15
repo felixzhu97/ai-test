@@ -77,11 +77,11 @@ class RAGAgent(BaseInfraAgent):
         
         self.default_collection = default_collection
     
-    def create_graph(self) -> StateGraph:
+    def create_graph(self) -> Runnable:
         """Create the LangGraph workflow for the RAG Agent.
         
         Returns:
-            A configured StateGraph instance.
+            A compiled Runnable instance.
         """
         workflow = StateGraph(AgentState)
         
@@ -90,7 +90,7 @@ class RAGAgent(BaseInfraAgent):
         workflow.set_entry_point("supervisor")
         workflow.add_edge("supervisor", END)
         
-        return workflow
+        return workflow.compile()
     
     def _create_supervisor_node(self):
         """Create the supervisor node that coordinates tool usage."""

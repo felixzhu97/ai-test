@@ -6,22 +6,20 @@
 
 ### AI Agents 多智能体系统
 
-基于 LangGraph 的智能体编排框架，提供 9 个专业智能体：
+基于 LangGraph 的智能体编排框架，提供 10 个专业智能体，由 Supervisor 作为中央协调器统一调度：
 
-
-| 智能体           | 功能              | 场景                        |
-| ------------- | --------------- | ------------------------- |
-| Supervisor    | 多智能体协调器         | 任务路由和编排                   |
-| K8s           | Kubernetes 集群管理 | Pod、Service、Deployment 管理 |
-| Monitoring    | 监控系统            | 指标查询、告警配置                 |
-| Model         | ML 模型管理         | 版本控制、部署、推理                |
-| LLMOps        | LLM 运维          | 训练、微调、评估                  |
-| AIOps         | 智能运维            | 事件分析、根因定位                 |
-| VectorDB      | 向量数据库           | 嵌入管理、相似度搜索                |
-| RAG           | 检索增强生成          | 文档问答、知识库                  |
-| Pipeline      | 工作流编排           | 自动化流水线                    |
-| Feature Store | 特征存储            | 特征工程管理                    |
-
+| 智能体 | 功能 | 场景 |
+| ------ | --- | --- |
+| **Supervisor** | 多智能体协调器 | 任务路由、智能调度、结果聚合 |
+| **K8s** | Kubernetes 集群管理 | Pod、Service、Deployment 管理 |
+| **VectorDB** | 向量数据库 | 嵌入管理、相似度搜索 |
+| **RAG** | 检索增强生成 | 文档问答、知识库管理 |
+| **Pipeline** | 工作流编排 | 自动化流水线编排 |
+| **LLMOps** | LLM 运维 | 训练、微调、评估 |
+| **AIOps** | 智能运维 | 事件分析、根因定位 |
+| **Feature Store** | 特征存储 | 特征工程管理 |
+| **Monitoring** | 监控系统 | 指标查询、告警配置 |
+| **Model** | ML 模型管理 | 版本控制、部署、推理 |
 
 ### Vision AI
 
@@ -35,6 +33,25 @@
 - 基于 Qdrant 的向量检索
 - 灵活的 LLM 支持（OpenAI GPT、Anthropic Claude、Ollama）
 - 流式响应和对话历史
+
+## 架构图
+
+### C1 系统上下文图
+![C1 Context](docs/c4/png/C4-Context.png)
+
+### C2 容器图
+![C2 Container](docs/c4/png/C4-Container.png)
+
+### C3 组件图
+
+#### AI Agents 服务组件
+![C3 AI Agents](docs/c4/png/C4-Component-AI-Agents.png)
+
+#### 前端组件
+![C3 Frontend](docs/c4/png/C4-Component-Frontend.png)
+
+#### RAG 服务组件
+![C3 RAG](docs/c4/png/C4-Component-RAG-Service.png)
 
 ## 技术栈
 
@@ -76,18 +93,34 @@ ai-test/
 │   │   └── src/
 │   │       ├── components/
 │   │       │   ├── agents/      # Agent 聊天组件
-│   │       │   └── panels/     # 各专业面板
-│   │       ├── i18n/          # 多语言支持 (EN/ZH/JA/FR/ES)
-│   │       └── theme/         # 设计系统
+│   │       │   └── panels/      # 各专业面板 (K8s/Monitoring/VectorDB等)
+│   │       ├── i18n/            # 多语言支持 (EN/ZH/JA/FR/ES)
+│   │       └── theme/           # 设计系统
 │   └── server/             # Express 后端服务
 ├── packages/
 │   ├── config/            # 共享配置
 │   └── utils/             # 共享工具库
 ├── services/
 │   ├── ai_agents/        # AI Agents 服务 (FastAPI)
-│   │   ├── agents/       # 9 个专业智能体
-│   │   ├── core/         # 核心组件
+│   │   ├── agents/       # 10 个专业智能体
+│   │   │   ├── supervisor.py    # 中央协调器
+│   │   │   ├── k8s_agent.py     # K8s 管理
+│   │   │   ├── vector_db_agent.py # 向量数据库
+│   │   │   ├── rag_agent.py     # RAG 检索
+│   │   │   ├── pipeline_agent.py # 工作流编排
+│   │   │   ├── llmops_agent.py   # LLM 运维
+│   │   │   ├── aiops_agent.py    # 智能运维
+│   │   │   ├── feature_store_agent.py # 特征存储
+│   │   │   ├── monitoring_agent.py   # 监控告警
+│   │   │   └── model_agent.py     # ML 模型管理
+│   │   ├── core/         # 核心组件 (base, prompts, schemas)
 │   │   ├── tools/        # 工具集
+│   │   │   ├── http_tools.py      # HTTP API 调用
+│   │   │   ├── system_tools.py    # 系统命令执行
+│   │   │   ├── k8s_tools.py       # Kubernetes 操作
+│   │   │   ├── vector_tools.py    # 向量数据库操作
+│   │   │   ├── monitoring_tools.py # 监控指标查询
+│   │   │   └── ...
 │   │   └── graphs/       # LangGraph 工作流
 │   ├── rag/              # RAG 服务 (FastAPI)
 │   │   └── src/
@@ -97,8 +130,8 @@ ai-test/
 │   └── vision-service/   # Vision AI 服务 (FastAPI)
 │       └── src/
 │           ├── detection/   # YOLO 检测
-│           ├── caption/    # BLIP 描述
-│           └── ocr/       # PaddleOCR
+│           ├── caption/     # BLIP 描述
+│           └── ocr/        # PaddleOCR
 ├── docs/                 # 项目文档
 │   └── c4/              # C4 架构图
 └── tests/               # 测试文件

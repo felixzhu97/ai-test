@@ -14,23 +14,33 @@ System_Boundary(frontend_boundary, "前端层") {
 }
 
 System_Boundary(services_boundary, "服务层") {
-    Container(ai_agents_service, "AI Agents 服务", "Python + LangChain + LangGraph", "多智能体协调和任务编排")
-    Container(vision_service, "Vision 服务", "Python + FastAPI + PyTorch", "视觉 AI 能力 (YOLO/BLIP/OCR)")
-    Container(rag_service, "RAG 服务", "Python + FastAPI + LangChain", "文档检索和问答")
+    Container(ai_agents_service, "AI Agents 服务", "Python + FastAPI + LangGraph", "多智能体协调和任务编排 (Port 8003)")
+    Container(vision_service, "Vision 服务", "Python + FastAPI + PyTorch", "视觉 AI 能力 (YOLO/BLIP/OCR) (Port 8002)")
+    Container(rag_service, "RAG 服务", "Python + FastAPI + LangChain", "文档检索和问答 (Port 8001)")
     Container(server, "Backend Server", "Node.js + Express", "工具端点 (可选)")
 }
 
-System_Boundary(ai_agents_boundary, "AI Agents 内部服务") {
-    Container(supervisor, "Supervisor Agent", "Python", "主管智能体，路由和协调")
+' === AI Agents 内部服务 ===
+System_Boundary(ai_agents_boundary, "AI Agents 内部容器") {
+    Container(supervisor, "Supervisor Agent", "Python", "主管智能体：意图识别、任务路由")
+    Container(k8s_agent, "K8s Agent", "Python", "Kubernetes 集群管理")
+    Container(vectordb_agent, "VectorDB Agent", "Python", "向量数据库操作")
     Container(rag_agent, "RAG Agent", "Python", "文档检索和知识库管理")
+    Container(pipeline_agent, "Pipeline Agent", "Python", "ML/DevOps 流水线编排")
     Container(llmops_agent, "LLMOps Agent", "Python", "ML 模型生命周期管理")
     Container(aiops_agent, "AIOps Agent", "Python", "智能运维和异常检测")
-    Container(pipeline_agent, "Pipeline Agent", "Python", "ML/DevOps 流水线编排")
     Container(feature_agent, "Feature Store Agent", "Python", "特征工程和管理")
+    Container(monitoring_agent, "Monitoring Agent", "Python", "指标查询、告警配置")
+    Container(model_agent, "Model Agent", "Python", "ML 模型版本控制、部署")
+}
+
+System_Boundary(ai_tools_boundary, "AI Agents 工具层") {
+    Container(http_tools, "HTTP Tools", "Python", "HTTP API 调用")
+    Container(system_tools, "System Tools", "Python", "系统命令执行")
 }
 
 System_Boundary(data_boundary, "数据层") {
-    ContainerDb(vector_store, "Vector Store", "Qdrant", "向量嵌入存储和检索")
+    ContainerDb(vector_store, "Vector Store", "Qdrant", "向量嵌入存储和检索 (Port 6333)")
     ContainerDb(mlflow_db, "MLflow", "PostgreSQL + S3", "ML 实验跟踪和模型注册")
     ContainerDb(feast_store, "Feast", "Redis + DB", "特征存储和在线服务")
 }
@@ -41,30 +51,46 @@ System_Boundary(external_boundary, "外部服务") {
     Container(ext_monitor, "Monitoring", "Prometheus + Grafana", "监控和可视化")
 }
 
+' === 用户关系 ===
 Rel(ml_engineer, web_app, "使用")
 Rel(devops_engineer, web_app, "监控")
 Rel(data_scientist, web_app, "查询")
 
+' === 前端与服务关系 ===
 Rel(web_app, ai_agents_service, "请求/流式响应", "HTTP/SSE")
 Rel(ai_agents_service, vision_service, "调用视觉 API", "HTTP")
 Rel(ai_agents_service, rag_service, "RAG 查询", "HTTP")
 Rel(web_app, server, "工具调用", "HTTP")
 
+' === AI Agents 内部路由 ===
 Rel(ai_agents_service, supervisor, "委托任务")
+Rel(supervisor, k8s_agent, "路由到")
+Rel(supervisor, vectordb_agent, "路由到")
 Rel(supervisor, rag_agent, "路由到")
 Rel(supervisor, llmops_agent, "路由到")
 Rel(supervisor, aiops_agent, "路由到")
 Rel(supervisor, pipeline_agent, "路由到")
 Rel(supervisor, feature_agent, "路由到")
+Rel(supervisor, monitoring_agent, "路由到")
+Rel(supervisor, model_agent, "路由到")
 
+' === 工具使用关系 ===
+Rel(k8s_agent, http_tools, "使用")
+Rel(k8s_agent, system_tools, "使用")
+Rel(vectordb_agent, http_tools, "使用")
+
+' === 服务与数据层关系 ===
 Rel(rag_agent, rag_service, "文档操作", "HTTP")
 Rel(rag_service, vector_store, "向量存储", "gRPC")
 
 Rel(llmops_agent, mlflow_db, "实验跟踪", "HTTP")
 Rel(feature_agent, feast_store, "特征存取", "gRPC")
 
+' === 外部服务关系 ===
 Rel(aiops_agent, ext_k8s, "集群操作", "kubectl")
 Rel(aiops_agent, ext_monitor, "指标查询", "HTTP")
+Rel(k8s_agent, ext_k8s, "集群操作", "kubectl")
+Rel(monitoring_agent, ext_monitor, "指标查询", "HTTP")
 Rel(pipeline_agent, ext_k8s, "部署", "kubectl")
 
 Rel(ai_agents_service, ext_llm, "LLM 调用")

@@ -245,6 +245,7 @@ export function AgentChat({ agentInfo, apiEndpoint, quickPrompts = [] }: AgentCh
       let fullContent = '';
       let currentEvent = '';
       let currentToolCallId = '';
+      let accumulatedToolOutput = '';
 
       const createOrUpdateToolCall = (
         id: string,
@@ -290,6 +291,8 @@ export function AgentChat({ agentInfo, apiEndpoint, quickPrompts = [] }: AgentCh
             const data = line.slice(6);
 
             if (currentEvent === 'tool_call') {
+              // Reset accumulated output for new tool call
+              accumulatedToolOutput = '';
               try {
                 const toolData = JSON.parse(data);
                 currentToolCallId = toolData.id;
@@ -305,15 +308,36 @@ export function AgentChat({ agentInfo, apiEndpoint, quickPrompts = [] }: AgentCh
             } else if (currentEvent === 'tool_output') {
               try {
                 const outputData = JSON.parse(data);
+                const outputStr = typeof outputData === 'string' ? outputData : JSON.stringify(outputData);
+                // Accumulate multi-line outputs
+                accumulatedToolOutput += (accumulatedToolOutput ? '\n' : '') + outputStr;
+                // Also append to main content for visibility
+                fullContent += (fullContent ? '\n\n' : '') + outputStr;
                 createOrUpdateToolCall(
                   currentToolCallId,
                   '',
                   {},
                   'success',
-                  typeof outputData === 'string' ? outputData : JSON.stringify(outputData)
+                  accumulatedToolOutput
+                );
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === assistantMessageId
+                      ? { ...msg, content: fullContent }
+                      : msg
+                  )
                 );
               } catch {
-                createOrUpdateToolCall(currentToolCallId, '', {}, 'success', data);
+                accumulatedToolOutput += (accumulatedToolOutput ? '\n' : '') + data;
+                fullContent += (fullContent ? '\n\n' : '') + data;
+                createOrUpdateToolCall(currentToolCallId, '', {}, 'success', accumulatedToolOutput);
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === assistantMessageId
+                      ? { ...msg, content: fullContent }
+                      : msg
+                  )
+                );
               }
             } else if (currentEvent === 'tool_error') {
               createOrUpdateToolCall(currentToolCallId, '', {}, 'error', data);

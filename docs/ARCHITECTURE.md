@@ -2,7 +2,7 @@
 
 ## System Architecture
 
-The AI Vision Service is a full-stack application with a microservices-inspired architecture:
+The AI-Test Platform is a full-stack application with a microservices-inspired architecture:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -16,39 +16,165 @@ The AI Vision Service is a full-stack application with a microservices-inspired 
 │                      API Gateway Layer                           │
 │                   (Express.js Server)                           │
 │                     Ports: 3000-3001                            │
-│               (Optional - Utility Endpoints)                    │
 └─────────────────────────────────────────────────────────────────┘
                                   │
                     ┌─────────────┴─────────────┐
                     ▼                           ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    AI Service Layer                              │
-│                 (FastAPI + Python)                              │
-│                      Port: 8000                                 │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │
-│  │     YOLO     │  │     BLIP     │  │      PaddleOCR       │ │
-│  │   Detector   │  │  Captioner   │  │      Processor       │ │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘ │
+│                    AI Agents Service Layer                       │
+│               (Python + FastAPI + LangGraph)                     │
+│                      Port: 8003                                 │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                   Supervisor Agent                       │   │
+│  │         (Central Coordinator - Task Routing)            │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                    │                                             │
+│    ┌───────┬───────┼───────┬───────┬───────┬───────┬───────┐  │
+│    ▼       ▼       ▼       ▼       ▼       ▼       ▼       ▼  │
+│ ┌─────┐┌─────┐┌─────┐┌─────┐┌─────┐┌─────┐┌─────┐┌─────┐┌─────┐
+│ │K8s  ││Vec  ││RAG  ││Pipe ││LLM  ││AI   ││Feat ││Moni ││Model│
+│ │     ││torDB││     ││line ││Ops  ││Ops  ││ure  ││tor  ││     │
+│ └─────┘└─────┘└─────┘└─────┘└─────┘└─────┘└─────┘└─────┘└─────┘
+│    │       │       │       │       │       │       │       │     │
+│    └───────┴───────┴───────┴───────┴───────┴───────┴───────┴─────┘
+│                              │                                    │
+│                    ┌─────────┴─────────┐                           │
+│                    ▼                   ▼                          │
+│            ┌───────────┐       ┌───────────────┐                  │
+│            │ HTTP Tools│       │ System Tools │                  │
+│            │ (API调用) │       │ (命令执行)   │                  │
+│            └───────────┘       └───────────────┘                  │
+└─────────────────────────────────────────────────────────────────┘
+                                  │
+                    ┌─────────────┼─────────────┐
+                    ▼             ▼             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Vision Service Layer                           │
+│                 (FastAPI + Python)                               │
+│                      Port: 8002                                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │     YOLO     │  │     BLIP     │  │      PaddleOCR       │  │
+│  │   Detector   │  │  Captioner   │  │      Processor       │  │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                                  │
+┌─────────────────────────────────────────────────────────────────┐
+│                     RAG Service Layer                            │
+│                 (FastAPI + Python)                               │
+│                      Port: 8001                                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │   Document   │  │   Embedding  │  │      LLM Gateway     │  │
+│  │    Loader    │  │    Model     │  │ (OpenAI/Claude/Ollama)│  │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    RAG Service Layer                             │
-│                 (FastAPI + Python)                              │
-│                      Port: 8001                                 │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │
-│  │   Document   │  │   Embedding  │  │      LLM Gateway     │ │
-│  │    Loader    │  │    Model     │  │ (OpenAI/Claude/Ollama)│ │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   Qdrant Vector Store                             │
-│                      Port: 6333                                   │
-│         (Semantic Search & Document Storage)                      │
+│                   Qdrant Vector Store                            │
+│                      Port: 6333                                  │
+│         (Semantic Search & Document Storage)                     │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+## AI Agents Multi-Agent System
+
+### Architecture Overview
+
+The AI Agents service uses a **Supervisor-based routing pattern** where a central Supervisor Agent coordinates specialized agents:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Supervisor Agent                          │
+│            (Central Coordinator & Router)                   │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  Intent Detection → Agent Selection → Delegation    │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        │                     │                     │
+        ▼                     ▼                     ▼
+┌───────────────┐   ┌───────────────┐   ┌───────────────┐
+│  K8s Agent    │   │  VectorDB     │   │  RAG Agent    │
+│  (Cluster)    │   │  (Embeddings)  │   │  (Documents)  │
+└───────────────┘   └───────────────┘   └───────────────┘
+        │                     │                     │
+        └─────────────────────┼─────────────────────┘
+                              │
+                              ▼
+                    ┌───────────────┐
+                    │   Tools       │
+                    ├───────────────┤
+                    │ - HTTP Tools  │
+                    │ - System Tools│
+                    │ - K8s Tools   │
+                    │ - Monitoring  │
+                    │   Tools       │
+                    └───────────────┘
+```
+
+### Agent Descriptions
+
+| Agent | Responsibility | Key Capabilities |
+|-------|---------------|------------------|
+| **Supervisor** | Central coordinator | Intent detection, task routing, result aggregation |
+| **K8s** | Kubernetes management | Pod/Service/Deployment operations, scaling |
+| **VectorDB** | Vector database ops | Embeddings, similarity search, collection management |
+| **RAG** | Document retrieval | Knowledge base management, document indexing |
+| **Pipeline** | Workflow orchestration | DAG execution, step management |
+| **LLMOps** | LLM operations | Training, fine-tuning, evaluation |
+| **AIOps** | Intelligent operations | Anomaly detection, root cause analysis |
+| **Feature Store** | Feature engineering | Feature registration, materialization |
+| **Monitoring** | Observability | Metrics, logs, alerting |
+| **Model** | ML model lifecycle | Version control, deployment, inference |
+
+### Routing Configuration
+
+The Supervisor uses keyword-based routing to delegate tasks:
+
+```
+用户输入 → Supervisor → 关键词匹配 → 专业智能体
+
+路由关键词映射:
+├── "vector", "embedding", "search"    → VectorDB Agent
+├── "k8s", "kubernetes", "pod", "cluster" → K8s Agent
+├── "monitor", "metric", "alert"        → Monitoring Agent
+├── "model", "deploy", "ml", "version"  → Model Agent
+├── "rag", "document", "knowledge"     → RAG Agent
+├── "llmops", "train", "evaluate"      → LLMOps Agent
+├── "feature", "materialize"            → Feature Store Agent
+├── "pipeline", "workflow", "dag"       → Pipeline Agent
+└── "aiops", "anomaly", "incident"      → AIOps Agent
+```
+
+### Tools Structure
+
+#### HTTP Tools (`http_tools.py`)
+
+Generic HTTP API call functionality:
+
+- **http_request**: Make REST API calls with configurable method, headers, and body
+
+#### System Tools (`system_tools.py`)
+
+Local system command execution:
+
+- **execute_command**: Run shell commands (kubectl, docker, git, etc.)
+
+#### Specialized Tools
+
+| Tool | Purpose |
+|------|---------|
+| `k8s_tools.py` | Kubernetes API operations |
+| `vector_tools.py` | Vector database operations |
+| `monitoring_tools.py` | Prometheus/Grafana queries |
+| `model_tools.py` | MLflow integration |
+| `llmops_tools.py` | Experiment tracking |
+| `aiops_tools.py` | Log analysis, anomaly detection |
+| `rag_tools.py` | Document operations |
+| `pipeline_tools.py` | Workflow management |
+| `feature_store_tools.py` | Feast integration |
 
 ## Component Details
 
@@ -57,16 +183,15 @@ The AI Vision Service is a full-stack application with a microservices-inspired 
 A single-page application built with React 18 and Vite.
 
 **Responsibilities:**
-- User interface for image upload
-- Task selection (caption, detect, OCR, analyze)
-- Display AI results with processing time
-- Handle file drag-and-drop
+- User interface for agent interactions
+- Agent panel management (K8s, Monitoring, VectorDB, etc.)
+- Real-time chat with streaming responses
 
 **Tech Stack:**
 - React 18
 - Vite (bundler)
 - TypeScript
-- Native Fetch API
+- Emotion CSS-in-JS
 
 ### 2. Backend Server (`apps/server`)
 
@@ -77,21 +202,39 @@ An Express.js server providing utility endpoints.
 - Random ID generation
 - Utility functions (clamp, delay)
 
-**Note:** This is currently optional and primarily serves as a reference implementation.
+### 3. AI Agents Service (`services/ai_agents`)
 
-### 3. AI Service (`services/vision-service`)
+The core multi-agent orchestration service.
 
-The core FastAPI application providing vision AI capabilities.
+**Responsibilities:**
+- Supervisor-based agent coordination
+- Task routing and delegation
+- Tool execution and result aggregation
+- LangGraph workflow management
+
+**Tech Stack:**
+- FastAPI + Python 3.10+
+- LangChain / LangGraph
+- Ollama (local LLM)
+
+**Features:**
+- 10 specialized agents
+- HTTP and system command tools
+- Streaming responses via SSE
+- Agent-to-agent delegation
+
+### 4. Vision Service (`services/vision-service`)
+
+Computer vision capabilities.
 
 **Responsibilities:**
 - Image processing and validation
 - Model inference (YOLO, BLIP, PaddleOCR)
 - REST API endpoints
-- Response serialization
 
-### 4. RAG Service (`services/rag`)
+### 5. RAG Service (`services/rag`)
 
-A production-grade RAG (Retrieval-Augmented Generation) service.
+Retrieval-Augmented Generation service.
 
 **Responsibilities:**
 - Document ingestion and processing
@@ -99,94 +242,36 @@ A production-grade RAG (Retrieval-Augmented Generation) service.
 - LLM-powered question answering
 - Conversation history management
 
-**Tech Stack:**
-- FastAPI + Python 3.10+
-- Qdrant vector database
-- LangChain for RAG orchestration
-- Sentence Transformers for embeddings
-- Support for OpenAI, Anthropic Claude, Ollama
-
-**Features:**
-- Multi-format document support (PDF, Markdown, Web, Text)
-- Streaming responses
-- Session-based chat history
-- Docker-ready deployment
-
 ## Data Flow
 
+### AI Agents Request Flow
+
 ```
-User Upload → React App → HTTP Request → FastAPI
-                                              │
-                                    ┌─────────┴─────────┐
-                                    ▼                   ▼
-                              load_image()         load_image()
-                                    │                   │
-                          ┌─────────┼─────────┐         │
-                          ▼         ▼         ▼         │
-                      YOLO       BLIP      PaddleOCR     │
-                          │         │         │          │
-                          └─────────┼─────────┘         │
-                                    ▼                   │
-                              Response ←── JSON ←───────┘
-                                    │
-                                    ▼
-                              React App Display
-```
-
-## AI Models
-
-### YOLO (Object Detection)
-
-- **Purpose:** Identify and locate objects in images
-- **Model:** YOLO11n (default) or custom YOLO models
-- **Output:** Bounding boxes, class names, confidence scores
-- **Device:** CUDA (GPU) or CPU
-
-```python
-# Usage in code
-detector = YOLODetector()
-result = await detector.detect(image, conf_threshold=0.25)
-```
-
-### BLIP (Image Captioning)
-
-- **Purpose:** Generate natural language descriptions of images
-- **Model:** Salesforce/blip-image-captioning-large (default)
-- **Output:** Caption text with processing time
-- **Device:** CUDA (GPU) or CPU
-
-```python
-# Usage in code
-captioner = BLIPCaptioner()
-result = await captioner.caption(image)
-```
-
-### PaddleOCR (Text Recognition)
-
-- **Purpose:** Extract text from images
-- **Languages:** Chinese, English (configurable)
-- **Output:** Text blocks with bounding boxes and confidence
-- **Device:** CUDA (GPU) or CPU
-
-```python
-# Usage in code
-ocr = PaddleOCRProcessor()
-result = await ocr.extract_text(image)
-```
-
-## Configuration
-
-Configuration is managed through environment variables and the `.env` file:
-
-```env
-# AI Service Configuration
-DEVICE=cuda                    # 'cuda' or 'cpu'
-YOLO_MODEL=yolo11n.pt          # YOLO model path
-BLIP_MODEL=Salesforce/blip-image-captioning-large
-OCR_LANG=ch                 # OCR languages
-MAX_IMAGE_SIZE=10485760        # 10MB max file size
-MODEL_CACHE_DIR=./models       # Model cache location
-MAX_CONCURRENT_REQUESTS=4      # Request queue limit
+User Input → React App → HTTP POST → AI Agents Service (8003)
+                                          │
+                                          ▼
+                                    Supervisor Agent
+                                          │
+                                          ▼
+                              Intent Detection & Routing
+                                          │
+                    ┌─────────────────────┼─────────────────────┐
+                    ▼                     ▼                     ▼
+              K8s Agent              VectorDB Agent        Monitoring Agent
+                    │                     │                     │
+                    ▼                     ▼                     ▼
+              K8s Tools             Vector Tools          Monitoring Tools
+                    │                     │                     │
+                    └─────────────────────┼─────────────────────┘
+                                          │
+                                          ▼
+                                    Result Aggregation
+                                          │
+                                          ▼
+                              Streaming Response (SSE)
+                                          │
+                                          ▼
+                                    React App Display
 ```
 
 ## Directory Structure
@@ -197,6 +282,8 @@ ai-test/
 │   ├── web/                    # React frontend
 │   │   ├── src/
 │   │   │   ├── components/
+│   │   │   │   ├── agents/     # Agent chat components
+│   │   │   │   └── panels/     # K8sPanel, VectorDBPanel, etc.
 │   │   │   └── App.tsx
 │   │   └── package.json
 │   └── server/                 # Express.js server
@@ -205,9 +292,22 @@ ai-test/
 │       └── package.json
 ├── packages/
 │   ├── config/                 # Shared TypeScript config
-│   └── utils/                 # Shared utilities
+│   └── utils/                  # Shared utilities
 ├── services/
-│   ├── vision-service/         # Python AI vision service
+│   ├── ai_agents/              # AI Agents service (new architecture)
+│   │   ├── agents/             # 10 specialized agents
+│   │   │   ├── supervisor.py   # Central coordinator
+│   │   │   ├── k8s_agent.py    # Kubernetes management
+│   │   │   ├── vector_db_agent.py  # Vector operations
+│   │   │   └── ...
+│   │   ├── core/               # Base classes, prompts, schemas
+│   │   ├── tools/              # All tool implementations
+│   │   │   ├── http_tools.py   # HTTP API calls
+│   │   │   ├── system_tools.py # Shell commands
+│   │   │   └── ...
+│   │   ├── graphs/             # LangGraph workflows
+│   │   └── main.py             # FastAPI app entry
+│   ├── vision-service/         # Vision AI service
 │   │   ├── src/
 │   │   │   ├── main.py        # FastAPI app entry
 │   │   │   ├── api/
@@ -219,108 +319,72 @@ ai-test/
 │   │   │   ├── schemas/
 │   │   │   │   └── vision.py  # Pydantic models
 │   │   │   └── core/
-│   │   │       └── config.py # Settings
-│   │   ├── tests/
-│   │   │   ├── test_api.py
-│   │   │   ├── test_config.py
-│   │   │   └── test_schemas.py
-│   │   ├── Dockerfile
-│   │   ├── docker-compose.yml
-│   │   └── pyproject.toml
-│   └── rag/                    # RAG service (new)
+│   │   │       └── config.py  # Settings
+│   │   └── ...
+│   └── rag/                    # RAG service
 │       ├── src/
-│       │   ├── main.py        # FastAPI app entry
-│       │   ├── config.py      # Settings
-│       │   ├── schemas.py     # Pydantic models
+│       │   ├── main.py         # FastAPI app entry
 │       │   ├── api/
-│       │   │   ├── documents.py  # Document API
-│       │   │   └── chat.py       # Chat API
+│       │   │   ├── documents.py # Document API
+│       │   │   └── chat.py     # Chat API
 │       │   ├── core/
 │       │   │   ├── llm_gateway.py   # LLM abstraction
 │       │   │   ├── embedding.py    # Embedding model
-│       │   │   └── vector_store.py  # Qdrant integration
-│       │   ├── document_loader/
-│       │   │   └── loader.py       # Document loaders
+│       │   │   └── vector_store.py # Qdrant integration
 │       │   └── services/
-│       │       ├── ingestion.py     # Document ingestion
+│       │       ├── ingestion.py    # Document ingestion
 │       │       └── rag_chain.py    # RAG chain
-│       ├── tests/
-│       │   ├── conftest.py
-│       │   └── test_rag_api.py
-│       ├── Dockerfile
-│       ├── docker-compose.yml
-│       └── pyproject.toml
-└── docs/                      # Documentation
+│       └── ...
+└── docs/                       # Documentation
 ```
 
-## Request/Response Examples
+## API Reference
 
-### Object Detection Request
+### AI Agents Service (Port 8003)
 
-```bash
-curl -X POST http://localhost:8000/vision/detect \
-  -F "file=@image.jpg" \
-  -F "conf=0.25"
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Health check |
+| `GET` | `/agents` | List all available agents |
+| `POST` | `/api/agents/supervisor/invoke` | Invoke supervisor (chat) |
+| `POST` | `/api/agents/{agent_name}/invoke` | Invoke specific agent |
 
-### Object Detection Response
+### Vision Service (Port 8002)
 
-```json
-{
-  "task": "detect_objects",
-  "model": "yolo11n.pt",
-  "detections": [
-    {
-      "class_name": "person",
-      "confidence": 0.92,
-      "bbox": [120, 50, 400, 600]
-    }
-  ],
-  "image_width": 800,
-  "image_height": 600,
-  "processing_time_ms": 45.2
-}
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/vision/detect` | Object detection |
+| `POST` | `/vision/caption` | Image captioning |
+| `POST` | `/vision/ocr` | Text extraction (OCR) |
 
-### Image Captioning Response
+### RAG Service (Port 8001)
 
-```json
-{
-  "task": "caption_image",
-  "model": "Salesforce/blip-image-captioning-large",
-  "caption": "A group of people hiking in the mountains",
-  "processing_time_ms": 230.5
-}
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/documents/ingest` | Ingest documents |
+| `POST` | `/chat` | Chat with RAG |
 
-## Performance Considerations
+## Configuration
 
-### GPU Acceleration
-
-The AI service uses CUDA by default for faster inference:
-
-- **YOLO:** ~30-60 FPS on GPU, ~5-10 FPS on CPU
-- **BLIP:** ~5-10 images/sec on GPU, ~0.5-1 images/sec on CPU
-- **PaddleOCR:** ~10-20 images/sec on GPU, ~2-5 images/sec on CPU
-
-### Concurrent Requests
-
-The service limits concurrent requests to prevent memory issues:
+### AI Agents Configuration
 
 ```env
-MAX_CONCURRENT_REQUESTS=4
+# Ollama LLM Configuration
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5:7b
 ```
 
-### Image Size Limits
+### Vision Service Configuration
 
-Maximum upload size is 10MB by default to prevent memory exhaustion.
-
-## Security
-
-- CORS is enabled for all origins (configure for production)
-- File type validation (only images accepted)
-- File size limits enforced
-- No persistent storage of uploaded images
+```env
+DEVICE=cuda                    # 'cuda' or 'cpu'
+YOLO_MODEL=yolo11n.pt          # YOLO model path
+BLIP_MODEL=Salesforce/blip-image-captioning-large
+OCR_LANG=ch                    # OCR languages
+MAX_IMAGE_SIZE=10485760        # 10MB max file size
+MODEL_CACHE_DIR=./models       # Model cache location
+MAX_CONCURRENT_REQUESTS=4      # Request queue limit
+```
 
 ## Deployment Options
 

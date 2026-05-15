@@ -17,7 +17,7 @@ export function K8sPanel() {
     >
       <AgentChat
         agentInfo={{ name: t.nav.kubernetes, description: t.agents.descriptions.k8s }}
-        apiEndpoint="/api/agents/k8s/invoke"
+        apiEndpoint="/api/agents/kubernetes/invoke"
         quickPrompts={t.agents.quickPrompts.k8s}
       />
     </AgentPanel>

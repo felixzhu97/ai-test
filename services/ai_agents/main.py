@@ -4,14 +4,14 @@ This service provides REST API endpoints for multi-agent orchestration.
 """
 
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from loguru import logger
 import json
-import asyncio
+import re
 
 from services.ai_agents.agents.supervisor import SupervisorAgent
 from services.ai_agents.agents.rag_agent import RAGAgent
@@ -23,6 +23,112 @@ from services.ai_agents.agents.k8s_agent import K8sAgent
 from services.ai_agents.agents.monitoring_agent import MonitoringAgent
 from services.ai_agents.agents.vector_db_agent import VectorDBAgent
 from services.ai_agents.agents.model_agent import ModelAgent
+
+from services.ai_agents.tools.vector_tools import get_all_vector_tools
+from services.ai_agents.tools.k8s_tools import get_all_k8s_tools
+from services.ai_agents.tools.monitoring_tools import get_all_monitoring_tools
+from services.ai_agents.tools.model_tools import get_all_model_tools
+from services.ai_agents.tools.llmops_tools import get_all_llmops_tools
+from services.ai_agents.tools.aiops_tools import get_all_aiops_tools
+
+
+def extract_clean_content(data: Any) -> str:
+    """Extract clean text content from various data formats.
+    
+    Handles:
+    - LangChain AIMessage objects
+    - Dict with 'messages' key
+    - Plain strings
+    - Nested dicts with 'content' field
+    """
+    # If it's a string
+    if isinstance(data, str):
+        content = data
+    # If it has content attribute (LangChain message)
+    elif hasattr(data, 'content'):
+        content = data.content
+    # If it's a dict
+    elif isinstance(data, dict):
+        # Direct content field
+        if 'content' in data:
+            content = data['content']
+            if isinstance(content, str):
+                pass
+            else:
+                content = str(content)
+        # LangChain message format
+        elif 'messages' in data:
+            messages = data['messages']
+            if isinstance(messages, list) and len(messages) > 0:
+                return extract_clean_content(messages[-1])
+            else:
+                return str(data)
+        else:
+            content = str(data)
+    else:
+        content = str(data)
+    
+    # Clean up LangChain internal object strings
+    # Pattern like: {'messages': [AIMessage(content="..."), ...]}
+    if re.match(r"^\{'[^']*':\s*\[", content) or content.startswith('AIMessage('):
+        try:
+            # Try to extract content from nested structures
+            match = re.search(r'content\s*=\s*"([^"]*)"', content)
+            if match:
+                content = match.group(1)
+            else:
+                # Try to find the last clear text block
+                match = re.search(r'"([^"]*response_metadata[^"]*)"', content)
+                if match:
+                    content = ""
+        except:
+            pass
+    
+    # Remove trailing JSON metadata blocks
+    content = re.sub(
+        r'\n?```json\s*\{[^}]*"type"[^}]*\}[^}]*```\s*$',
+        '',
+        content
+    ).strip()
+    
+    return content
+
+
+def execute_tool_calls(tool_calls: List[Dict], tools: List) -> List[Dict]:
+    """Execute tool calls and return results."""
+    results = []
+    tool_map = {tool.name: tool for tool in tools}
+    
+    for call in tool_calls:
+        tool_name = call.get('name', '')
+        tool_args = call.get('args', {})
+        tool_id = call.get('id', '')
+        
+        if tool_name in tool_map:
+            try:
+                result = tool_map[tool_name].invoke(tool_args)
+                results.append({
+                    'id': tool_id,
+                    'name': tool_name,
+                    'output': str(result),
+                    'status': 'success'
+                })
+            except Exception as e:
+                results.append({
+                    'id': tool_id,
+                    'name': tool_name,
+                    'output': f"Error: {str(e)}",
+                    'status': 'error'
+                })
+        else:
+            results.append({
+                'id': tool_id,
+                'name': tool_name,
+                'output': f"Tool '{tool_name}' not found",
+                'status': 'error'
+            })
+    
+    return results
 
 
 class Message(BaseModel):
@@ -73,14 +179,14 @@ async def initialize_agents():
         
         # Initialize all specialized agents
         rag_agent = RAGAgent(llm=llm)
-        llmops_agent = LLMOpsAgent(llm=llm)
-        aiops_agent = AIOpsAgent(llm=llm)
+        llmops_agent = LLMOpsAgent(llm=llm, tools=get_all_llmops_tools())
+        aiops_agent = AIOpsAgent(llm=llm, tools=get_all_aiops_tools())
         pipeline_agent = PipelineAgent(llm=llm)
         feature_store_agent = FeatureStoreAgent(llm=llm)
-        k8s_agent = K8sAgent(llm=llm)
-        monitoring_agent = MonitoringAgent(llm=llm)
-        vector_agent = VectorDBAgent(llm=llm)
-        model_agent = ModelAgent(llm=llm)
+        k8s_agent = K8sAgent(llm=llm, tools=get_all_k8s_tools())
+        monitoring_agent = MonitoringAgent(llm=llm, tools=get_all_monitoring_tools())
+        vector_agent = VectorDBAgent(llm=llm, tools=get_all_vector_tools())
+        model_agent = ModelAgent(llm=llm, tools=get_all_model_tools())
         
         # Create supervisor with all agents
         _supervisor = SupervisorAgent(
@@ -208,55 +314,65 @@ def create_app() -> FastAPI:
                 yield f"data: Starting analysis...\n\n"
                 
                 import asyncio
-                import queue
-                import threading
                 
-                result_queue = queue.Queue()
-                error_holder = [None]
+                result_holder = [None]  # [result_or_error, is_error]
                 
                 def run_agent():
                     try:
                         result = _supervisor.invoke({"messages": lc_messages})
-                        result_queue.put(("result", result))
+                        result_holder[0] = (result, False)
                     except Exception as e:
                         logger.error(f"Error invoking supervisor: {e}")
-                        error_holder[0] = e
-                        result_queue.put(("error", str(e)))
+                        result_holder[0] = (str(e), True)
                 
-                # Start agent in background thread
-                thread = threading.Thread(target=run_agent)
-                thread.start()
+                # Run agent in background thread using loop.run_in_executor
+                loop = asyncio.get_event_loop()
+                future = loop.run_in_executor(None, run_agent)
                 
-                # Wait for initial response with timeout
-                try:
-                    while True:
+                # Wait for the future with timeout, yielding progress
+                import time
+                start_time = time.time()
+                poll_interval = 0.5
+                
+                # Poll until complete or timeout
+                while not future.done():
+                    if time.time() - start_time > 60:
+                        logger.warning("Agent invocation timed out")
+                        break
+                    await asyncio.sleep(poll_interval)
+                
+                # If result not in holder but future done, check for exceptions
+                if result_holder[0] is None:
+                    if future.done() and not future.cancelled():
                         try:
-                            msg_type, data = result_queue.get(timeout=60)
-                            if msg_type == "error":
-                                yield f"event: error\n"
-                                yield f"data: {data}\n\n"
-                                break
-                            elif msg_type == "result":
-                                # Send the response
-                                result_messages = data.get("messages", [])
-                                if result_messages:
-                                    last_message = result_messages[-1]
-                                    content = last_message.content if hasattr(last_message, 'content') else str(last_message)
-                                    yield f"event: message\n"
-                                    yield f"data: {content}\n\n"
-                                
-                                # Send agent results
-                                agent_results = data.get("agent_results", {})
-                                for agent_name, agent_result in agent_results.items():
-                                    yield f"event: tool_output\n"
-                                    yield f"data: Agent '{agent_name}' completed\n\n"
-                                break
-                        except queue.Empty:
-                            # Timeout, send progress indicator
+                            # Wait for any exception from the future
+                            future.result()
+                        except Exception as e:
+                            result_holder[0] = (str(e), True)
+                
+                if result_holder[0] is None:
+                    yield f"event: message\n"
+                    yield f"data: Timeout waiting for response\n\n"
+                else:
+                    data, is_error = result_holder[0]
+                    
+                    if is_error:
+                        yield f"event: error\n"
+                        yield f"data: {data}\n\n"
+                    else:
+                        # Send the response
+                        result_messages = data.get("messages", [])
+                        if result_messages:
+                            last_message = result_messages[-1]
+                            content = last_message.content if hasattr(last_message, 'content') else str(last_message)
                             yield f"event: message\n"
-                            yield f"data: Still processing...\n\n"
-                finally:
-                    thread.join(timeout=5)
+                            yield f"data: {content}\n\n"
+                        
+                        # Send agent results
+                        agent_results = data.get("agent_results", {})
+                        for agent_name, agent_result in agent_results.items():
+                            yield f"event: tool_output\n"
+                            yield f"data: Agent '{agent_name}' completed\n\n"
                 
                 yield f"data: [DONE]\n\n"
                 
@@ -293,38 +409,132 @@ def create_app() -> FastAPI:
                 yield f"event: message\n"
                 yield f"data: Processing...\n\n"
                 
-                import queue
-                import threading
-                
-                result_queue = queue.Queue()
+                # Use asyncio for proper async handling
+                result_holder = [None]  # [result_tuple or error_string, is_error]
+                tool_events = []  # Store tool events to yield later
                 
                 def run_agent():
                     try:
-                        result = _supervisor.invoke_single_agent(agent_name, task)
-                        result_queue.put(("result", result))
+                        # Get agent and tools
+                        agent = _supervisor.agents.get(agent_name)
+                        if agent is None:
+                            result_holder[0] = (f"Agent '{agent_name}' not found", True)
+                            return
+                        
+                        tools = agent.tools
+                        tool_map = {t.name: t for t in tools}
+                        
+                        # Import LangChain messages
+                        from langchain_core.messages import HumanMessage
+                        
+                        system_msg = agent._format_system_message()
+                        
+                        # First LLM call
+                        messages = [HumanMessage(content=task)]
+                        response = _supervisor.llm.invoke([system_msg] + messages)
+                        content = response.content if hasattr(response, 'content') else str(response)
+                        
+                        # Try to find and execute tool call
+                        import json
+                        
+                        # Look for JSON tool call - try multiple patterns
+                        tool_call = None
+                        for pattern in [
+                            r'\{[^{}]*"tool"[^{}]*\}',
+                            r'\{[^{}]*"tool"\s*:\s*"[^"]+"\s*,\s*"args"\s*:\s*\{[^}]*\}\s*\}',
+                        ]:
+                            json_match = re.search(pattern, content)
+                            if json_match:
+                                try:
+                                    tool_call = json.loads(json_match.group(0))
+                                    if 'tool' in tool_call:
+                                        break
+                                except:
+                                    pass
+                        
+                        if tool_call and 'tool' in tool_call:
+                            tool_name = tool_call.get('tool', '')
+                            tool_args = tool_call.get('args', {})
+                            
+                            if tool_name in tool_map:
+                                try:
+                                    result = tool_map[tool_name].invoke(tool_args)
+                                    result_str = str(result)
+                                    tool_events.append(('tool', tool_name, result_str))
+                                    # Second call with result
+                                    messages.append(HumanMessage(content=f"Result: {result}"))
+                                except Exception as e:
+                                    tool_events.append(('tool_error', tool_name, str(e)))
+                                    messages.append(HumanMessage(content=f"Error: {str(e)}"))
+                            
+                            # Get final response
+                            response = _supervisor.llm.invoke([system_msg] + messages)
+                            final_content = response.content if hasattr(response, 'content') else str(response)
+                            result_holder[0] = (final_content, False)
+                        else:
+                            # No tool call, return as-is
+                            result_holder[0] = (content, False)
+                        
                     except Exception as e:
                         logger.error(f"Error invoking agent {agent_name}: {e}")
-                        result_queue.put(("error", str(e)))
+                        result_holder[0] = (str(e), True)
                 
-                thread = threading.Thread(target=run_agent)
-                thread.start()
+                # Run agent in background thread using run_in_executor
+                import asyncio
+                loop = asyncio.get_event_loop()
+                future = loop.run_in_executor(None, run_agent)
                 
-                try:
-                    msg_type, data = result_queue.get(timeout=120)
-                    if msg_type == "error":
-                        yield f"event: error\n"
-                        yield f"data: {data}\n\n"
-                    else:
-                        result_content = data.get("result", str(data))
-                        if isinstance(result_content, dict):
-                            result_content = json.dumps(result_content, indent=2)
-                        yield f"event: message\n"
-                        yield f"data: {result_content}\n\n"
-                except queue.Empty:
+                # Wait for the future with timeout, yielding progress
+                import time
+                start_time = time.time()
+                poll_interval = 0.5
+                
+                # Poll until complete or timeout
+                while not future.done():
+                    if time.time() - start_time > 120:
+                        logger.warning(f"Agent '{agent_name}' invocation timed out")
+                        break
+                    await asyncio.sleep(poll_interval)
+                
+                # If result not in holder but future done, check for exceptions
+                if result_holder[0] is None:
+                    if future.done() and not future.cancelled():
+                        try:
+                            future.result()
+                        except Exception as e:
+                            result_holder[0] = (str(e), True)
+                
+                # Yield tool events
+                for event_type, tool_name, result in tool_events:
+                    if event_type == 'tool':
+                        # Send tool_call event first
+                        import uuid
+                        tool_id = str(uuid.uuid4())[:8]
+                        yield f"event: tool_call\n"
+                        yield f"data: {{\"id\": \"{tool_id}\", \"name\": \"{tool_name}\", \"input\": {{}}}}\n\n"
+                        # Send tool_output event - properly format multi-line data
+                        yield f"event: tool_output\n"
+                        for line in str(result).split('\n'):
+                            yield f"data: {line}\n"
+                        yield f"\n"
+                    elif event_type == 'tool_error':
+                        yield f"event: tool_error\n"
+                        yield f"data: [Tool Error: {tool_name}]\n"
+                        for line in str(result).split('\n'):
+                            yield f"data: {line}\n"
+                        yield f"\n"
+                
+                if result_holder[0] is None:
                     yield f"event: error\n"
                     yield f"data: Timeout waiting for agent response\n\n"
-                finally:
-                    thread.join(timeout=5)
+                else:
+                    content, is_error = result_holder[0]
+                    if is_error:
+                        yield f"event: error\n"
+                        yield f"data: {content}\n\n"
+                    else:
+                        yield f"event: message\n"
+                        yield f"data: {content}\n\n"
                 
                 yield f"data: [DONE]\n\n"
                 
