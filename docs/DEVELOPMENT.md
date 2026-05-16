@@ -13,8 +13,28 @@ ai-test/
 │   ├── config/        # Shared TypeScript config
 │   └── utils/         # Shared utilities
 ├── services/
-│   └── vision-service/           # Python AI service (FastAPI)
-└── docs/             # Documentation
+│   ├── vision-service/      # Vision AI service (FastAPI, Python)
+│   │   ├── src/
+│   │   │   ├── api/         # API endpoints
+│   │   │   ├── core/        # Core business logic
+│   │   │   ├── models/      # ML models
+│   │   │   └── schemas/     # Pydantic schemas
+│   │   └── tests/
+│   ├── ai_agents/           # Multi-agent orchestration (FastAPI, Python)
+│   │   ├── agents/         # Agent implementations
+│   │   ├── core/           # Core configurations
+│   │   ├── graphs/         # LangGraph definitions
+│   │   ├── tools/          # Agent tools
+│   │   └── main.py         # Entry point
+│   └── rag/                # RAG service (FastAPI, Python)
+│       ├── src/
+│       │   ├── api/        # API endpoints
+│       │   ├── core/       # Core logic
+│       │   ├── schemas/    # Pydantic schemas
+│       │   └── persistence/# Data persistence
+│       └── tests/
+├── docs/             # Documentation
+└── scripts/         # Build/deployment scripts
 ```
 
 ## Prerequisites
@@ -39,24 +59,68 @@ pnpm install
 
 ### 2. Python Environment
 
+The project has three Python-based microservices. Each service has its own virtual environment.
+
+#### Vision Service
+
 ```bash
 cd services/vision-service
 
 # Create virtual environment
 python3 -m venv .venv
 
-# Activate virtual environment
+# Activate
 source .venv/bin/activate  # Linux/macOS
 # .venv\Scripts\activate   # Windows
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Install dev dependencies for testing
+# Install dev dependencies
 pip install pytest pytest-asyncio httpx
 ```
 
+#### AI Agents Service
+
+```bash
+cd services/ai_agents
+
+# Create virtual environment
+python3 -m venv .venv
+
+# Activate
+source .venv/bin/activate  # Linux/macOS
+# .venv\Scripts\activate   # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Install dev dependencies
+pip install pytest pytest-asyncio httpx
+```
+
+#### RAG Service
+
+```bash
+cd services/rag
+
+# Create virtual environment
+python3 -m venv .venv
+
+# Activate
+source .venv/bin/activate  # Linux/macOS
+# .venv\Scripts\activate   # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Install dev dependencies
+pip install pytest pytest-asyncio httpx ruff
+```
+
 ### 3. Environment Configuration
+
+#### Vision Service
 
 ```bash
 cd services/vision-service
@@ -82,19 +146,128 @@ MAX_CONCURRENT_REQUESTS=4
 MODEL_CACHE_DIR=./models
 ```
 
+#### AI Agents Service
+
+```bash
+cd services/ai_agents
+cp .env.example .env  # If exists
+```
+
+Edit `.env` as needed:
+
+```env
+# Ollama LLM Configuration
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2
+
+# Service Configuration
+PORT=8003
+LOG_LEVEL=INFO
+```
+
+#### RAG Service
+
+```bash
+cd services/rag
+cp .env.example .env
+```
+
+Edit `.env` as needed:
+
+```env
+# Qdrant Vector Store
+QDRANT_HOST=localhost
+QDRANT_PORT=6333
+COLLECTION_NAME=documents
+
+# LLM Configuration
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2
+
+# Embedding Model
+EMBEDDING_MODEL=BAAI/bge-m3
+HF_ENDPOINT=
+
+# Service Configuration
+PORT=8001
+LOG_LEVEL=INFO
+```
+
 ## Running Services
 
-### AI Service (Python)
+### Service Ports
+
+
+| Service        | Port | Description                         |
+| -------------- | ---- | ----------------------------------- |
+| Vision Service | 8002 | Image recognition (YOLO, BLIP, OCR) |
+| AI Agents      | 8003 | Multi-agent orchestration           |
+| RAG Service    | 8001 | Retrieval-augmented generation      |
+| Web Frontend   | 5173 | React frontend                      |
+| Backend Server | 3000 | Express.js backend                  |
+
+
+### Vision Service (Port 8002)
 
 ```bash
 cd services/vision-service
 source .venv/bin/activate
 
 # Run with hot reload
-uvicorn src.main:app --reload --port 8000
+uvicorn src.main:app --reload --port 8002
 
 # Or with explicit host
-uvicorn src.main:app --host 0.0.0.0 --port 8000
+uvicorn src.main:app --host 0.0.0.0 --port 8002
+```
+
+### AI Agents Service (Port 8003)
+
+```bash
+cd services/ai_agents
+source .venv/bin/activate
+
+# Run with hot reload
+uvicorn main:app --reload --port 8003
+
+# Or with explicit host
+uvicorn main:app --host 0.0.0.0 --port 8003
+```
+
+**Available Agents:**
+
+- Supervisor: Orchestrates other agents
+- RAG Agent: Document retrieval and Q&A
+- LLMOps Agent: Model lifecycle management
+- AIOps Agent: AI infrastructure operations
+- Pipeline Agent: Data pipeline management
+- Feature Store Agent: Feature engineering
+- K8s Agent: Kubernetes operations
+- Monitoring Agent: System monitoring
+- Vector DB Agent: Vector database operations
+- Model Agent: ML model management
+
+### RAG Service (Port 8001)
+
+```bash
+cd services/rag
+source .venv/bin/activate
+
+# Run with hot reload
+uvicorn src.main:app --reload --port 8001
+
+# Or with explicit host
+uvicorn src.main:app --host 0.0.0.0 --port 8001
+```
+
+**Prerequisites for RAG Service:**
+
+- Qdrant vector store running (or disable via config)
+- Ollama or OpenAI API for LLM
+
+```bash
+# Run Qdrant with Docker (optional)
+docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
 ```
 
 ### Web Frontend (Node.js)
@@ -122,9 +295,30 @@ pnpm --filter @ai-test/web dev
 pnpm --filter @ai-test/server dev
 ```
 
+### Multi-Service Development
+
+For local development with all services:
+
+```bash
+# Terminal 1: Vision Service
+cd services/vision-service && source .venv/bin/activate && uvicorn src.main:app --reload --port 8002
+
+# Terminal 2: AI Agents Service
+cd services/ai_agents && source .venv/bin/activate && uvicorn main:app --reload --port 8003
+
+# Terminal 3: RAG Service
+cd services/rag && source .venv/bin/activate && uvicorn src.main:app --reload --port 8001
+
+# Terminal 4: Web Frontend
+cd apps/web && pnpm dev
+
+# Terminal 5: Backend Server (optional)
+cd apps/server && pnpm dev
+```
+
 ## Testing
 
-### Python Tests (AI Service)
+### Vision Service Tests
 
 ```bash
 cd services/vision-service
@@ -138,6 +332,35 @@ python -m pytest tests/test_api.py -v
 
 # Run with coverage
 python -m pytest tests/ -v --cov=src --cov-report=html
+```
+
+### AI Agents Tests
+
+```bash
+cd services/ai_agents
+source .venv/bin/activate
+
+# Run all tests
+python -m pytest tests/ -v
+
+# Run specific test file
+python -m pytest tests/test_api.py -v
+```
+
+### RAG Service Tests
+
+```bash
+cd services/rag
+source .venv/bin/activate
+
+# Run all tests
+python -m pytest tests/ -v
+
+# Run with coverage
+python -m pytest tests/ -v --cov=src --cov-report=html
+
+# Lint code
+ruff check src/
 ```
 
 ### TypeScript Tests (Web/Server)

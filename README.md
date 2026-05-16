@@ -4,22 +4,41 @@
 
 ## 功能特性
 
+### AIInfraPanel 统一智能面板
+
+统一的 AI 基础设施管理界面，整合 10 个专业智能体面板，通过 Supervisor 作为中央协调器统一调度：
+
+
+| 面板                  | 功能              | 场景                        |
+| ------------------- | --------------- | ------------------------- |
+| **AIInfraPanel**    | 统一入口            | 智能面板切换、快速任务路由             |
+| **SupervisorPanel** | 多智能体协调器         | 任务路由、智能调度、结果聚合            |
+| **K8sPanel**        | Kubernetes 集群管理 | Pod、Service、Deployment 管理 |
+| **VectorDBPanel**   | 向量数据库           | 嵌入管理、相似度搜索                |
+| **MonitoringPanel** | 监控系统            | 指标查询、告警配置                 |
+| **ModelPanel**      | ML 模型管理         | 版本控制、部署、推理                |
+| **LLMOpsPanel**     | LLM 运维          | 训练、微调、评估                  |
+| **AIOpsPanel**      | 智能运维            | 事件分析、根因定位                 |
+
+
 ### AI Agents 多智能体系统
 
 基于 LangGraph 的智能体编排框架，提供 10 个专业智能体，由 Supervisor 作为中央协调器统一调度：
 
-| 智能体 | 功能 | 场景 |
-| ------ | --- | --- |
-| **Supervisor** | 多智能体协调器 | 任务路由、智能调度、结果聚合 |
-| **K8s** | Kubernetes 集群管理 | Pod、Service、Deployment 管理 |
-| **VectorDB** | 向量数据库 | 嵌入管理、相似度搜索 |
-| **RAG** | 检索增强生成 | 文档问答、知识库管理 |
-| **Pipeline** | 工作流编排 | 自动化流水线编排 |
-| **LLMOps** | LLM 运维 | 训练、微调、评估 |
-| **AIOps** | 智能运维 | 事件分析、根因定位 |
-| **Feature Store** | 特征存储 | 特征工程管理 |
-| **Monitoring** | 监控系统 | 指标查询、告警配置 |
-| **Model** | ML 模型管理 | 版本控制、部署、推理 |
+
+| 智能体               | 功能              | 场景                        |
+| ----------------- | --------------- | ------------------------- |
+| **Supervisor**    | 多智能体协调器         | 任务路由、智能调度、结果聚合            |
+| **K8s**           | Kubernetes 集群管理 | Pod、Service、Deployment 管理 |
+| **VectorDB**      | 向量数据库           | 嵌入管理、相似度搜索                |
+| **RAG**           | 检索增强生成          | 文档问答、知识库管理                |
+| **Pipeline**      | 工作流编排           | 自动化流水线编排                  |
+| **LLMOps**        | LLM 运维          | 训练、微调、评估                  |
+| **AIOps**         | 智能运维            | 事件分析、根因定位                 |
+| **Feature Store** | 特征存储            | 特征工程管理                    |
+| **Monitoring**    | 监控系统            | 指标查询、告警配置                 |
+| **Model**         | ML 模型管理         | 版本控制、部署、推理                |
+
 
 ### Vision AI
 
@@ -33,6 +52,9 @@
 - 基于 Qdrant 的向量检索
 - 灵活的 LLM 支持（OpenAI GPT、Anthropic Claude、Ollama）
 - 流式响应和对话历史
+- 持久化会话管理
+- 智能缓存机制
+- 文档元数据管理
 
 ## 架构图
 
@@ -63,6 +85,8 @@
 - React 18 + TypeScript
 - Vite 构建工具
 - Emotion CSS-in-JS
+- i18n 多语言支持 (EN/ZH/JA/FR/ES)
+- theme.ts 苹果风格设计系统
 
 ### AI Agents
 
@@ -95,10 +119,12 @@ ai-test/
 │   ├── web/              # React 前端应用
 │   │   └── src/
 │   │       ├── components/
-│   │       │   ├── agents/      # Agent 聊天组件
-│   │       │   └── panels/      # 各专业面板 (K8s/Monitoring/VectorDB等)
+│   │       │   ├── agents/      # Agent 聊天组件 (AgentChat, ChatMessage, ToolResult, StatusBadge)
+│   │       │   └── panels/      # AIInfraPanel 统一面板 (Supervisor/K8s/Monitoring/Model/LLMOps/AIOps/VectorDB)
 │   │       ├── i18n/            # 多语言支持 (EN/ZH/JA/FR/ES)
-│   │       └── theme/           # 设计系统
+│   │       │   ├── index.tsx    # I18nProvider + useI18n hook
+│   │       │   └── locales.ts   # 翻译文本
+│   │       └── theme.ts          # 苹果风格设计系统
 │   └── server/             # Express 后端服务
 ├── packages/
 │   ├── config/            # 共享配置

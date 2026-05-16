@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get the AI Vision Service running in 5 minutes.
+Get the AI services running in 5 minutes.
 
 ## Prerequisites
 
@@ -9,23 +9,43 @@ Get the AI Vision Service running in 5 minutes.
 - Python >= 3.9
 - (Optional) NVIDIA GPU with CUDA for faster inference
 
+## Service Overview
+
+This project includes three AI microservices:
+
+
+| Service        | Port | Description                                  |
+| -------------- | ---- | -------------------------------------------- |
+| RAG Service    | 8001 | Retrieval-augmented generation, document Q&A |
+| Vision Service | 8002 | Image recognition (YOLO, BLIP, OCR)          |
+| AI Agents      | 8003 | Multi-agent orchestration                    |
+
+
 ## Option 1: Run with Docker (Recommended)
 
 The fastest way to get everything running.
 
-### 1. Start the AI Service
+### 1. Start AI Services
 
 ```bash
-cd services/vision-service
-
-# With GPU support (requires NVIDIA Container Toolkit)
-docker compose up ai
-
-# Or CPU only
-docker compose up ai-cpu
+# Start all services with Docker Compose
+cd services/vision-service && docker compose up ai -d
+cd services/ai_agents && docker compose up -d
+cd services/rag && docker compose up -d
 ```
 
-The AI service will be available at `http://localhost:8000`.
+Or start individual services:
+
+```bash
+# Vision Service (with GPU)
+cd services/vision-service && docker compose up ai -d
+
+# AI Agents Service
+cd services/ai_agents && docker compose up -d
+
+# RAG Service
+cd services/rag && docker compose up -d
+```
 
 ### 2. Start the Web Frontend
 
@@ -47,31 +67,44 @@ For development with hot reloading.
 # Install Node.js dependencies
 pnpm install
 
-# Install Python dependencies
+# Vision Service
 cd services/vision-service
 python3 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# AI Agents Service
+cd ../ai_agents
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# RAG Service
+cd ../rag
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
 ### 2. Configure Environment
 
+For each service, copy the example env file:
+
 ```bash
+# Vision Service
 cd services/vision-service
+cp .env.example .env
+
+# AI Agents Service
+cd ../ai_agents
+cp .env.example .env
+
+# RAG Service
+cd ../rag
 cp .env.example .env
 ```
 
-Edit `.env` if needed:
-
-```env
-DEVICE=cuda          # or 'cpu' for CPU-only inference
-YOLO_MODEL=yolo11n.pt
-BLIP_MODEL=Salesforce/blip-image-captioning-large
-OCR_LANG=ch
-MAX_IMAGE_SIZE=10485760  # 10MB in bytes
-```
-
-### 3. Download AI Models
+### 3. Download AI Models (Vision Service)
 
 The first run will automatically download required models. You can pre-download them:
 
@@ -87,19 +120,48 @@ python -c "from transformers import AutoProcessor, BlipForConditionalGeneration;
 
 ### 4. Start Services
 
-Terminal 1 - AI Service:
+#### Vision Service (Port 8002)
+
+Terminal 1:
+
 ```bash
 cd services/vision-service
 source .venv/bin/activate
-uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn src.main:app --host 0.0.0.0 --port 8002 --reload
 ```
 
-Terminal 2 - Web Frontend:
+#### AI Agents Service (Port 8003)
+
+Terminal 2:
+
+```bash
+cd services/ai_agents
+source .venv/bin/activate
+uvicorn main:app --host 0.0.0.0 --port 8003 --reload
+```
+
+#### RAG Service (Port 8001)
+
+Terminal 3:
+
+```bash
+cd services/rag
+source .venv/bin/activate
+uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+#### Web Frontend
+
+Terminal 4:
+
 ```bash
 pnpm dev
 ```
 
-Terminal 3 - Backend Server (optional):
+#### Backend Server (Optional)
+
+Terminal 5:
+
 ```bash
 cd apps/server
 pnpm dev
@@ -112,73 +174,119 @@ pnpm dev
 1. Open `http://localhost:5173` in your browser
 2. Drag and drop an image or click to select
 3. Choose an analysis task:
-   - **Caption** - Generate image description
-   - **Detect** - Find objects in image
-   - **OCR** - Extract text from image
-   - **Analyze** - Run all tasks
+  - **Caption** - Generate image description
+  - **Detect** - Find objects in image
+  - **OCR** - Extract text from image
+  - **Analyze** - Run all tasks
 4. Click "Analyze Image" and view results
 
 ### API Usage
 
-#### Object Detection
+#### RAG Service (Port 8001)
 
 ```bash
-curl -X POST http://localhost:8000/vision/detect \
+# Health check
+curl http://localhost:8001/health
+
+# Upload document
+curl -X POST http://localhost:8001/api/documents/upload \
+  -F "file=@document.pdf"
+
+# Chat with documents
+curl -X POST http://localhost:8001/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What is this document about?"}'
+```
+
+#### Vision Service (Port 8002)
+
+```bash
+# Health check
+curl http://localhost:8002/health
+
+# Object Detection
+curl -X POST http://localhost:8002/vision/detect \
   -F "file=@your-image.jpg" \
   -F "conf=0.25"
-```
 
-#### Image Captioning
+# Image Captioning
+curl -X POST http://localhost:8002/vision/caption \
+  -F "file=@your-image.jpg"
 
-```bash
-curl -X POST http://localhost:8000/vision/caption \
+# OCR
+curl -X POST http://localhost:8002/vision/ocr \
+  -F "file=@your-image.jpg"
+
+# Combined Analysis
+curl -X POST "http://localhost:8002/vision/analyze?task=caption_image" \
   -F "file=@your-image.jpg"
 ```
 
-#### OCR
+#### AI Agents Service (Port 8003)
 
 ```bash
-curl -X POST http://localhost:8000/vision/ocr \
-  -F "file=@your-image.jpg"
-```
+# Health check
+curl http://localhost:8003/health
 
-#### Combined Analysis
+# List available agents
+curl http://localhost:8003/agents
 
-```bash
-# As query parameter
-curl -X POST "http://localhost:8000/vision/analyze?task=caption_image" \
-  -F "file=@your-image.jpg"
+# Invoke supervisor agent (streaming)
+curl -X POST http://localhost:8003/api/agents/supervisor/invoke \
+  -H "Content-Type: application/json" \
+  -d '{"messages": [{"role": "user", "content": "Help me manage my ML pipeline"}]}'
+
+# Invoke specific agent
+curl -X POST http://localhost:8003/api/agents/rag_agent/invoke \
+  -H "Content-Type: application/json" \
+  -d '{"messages": [{"role": "user", "content": "Search for documents about ML"}]}'
 ```
 
 ## Troubleshooting
 
 ### "No module named 'torch'"
 
-Activate the virtual environment:
+Activate the virtual environment for the appropriate service:
 
 ```bash
+# Vision Service
 source services/vision-service/.venv/bin/activate
+
+# AI Agents Service
+source services/ai_agents/.venv/bin/activate
+
+# RAG Service
+source services/rag/.venv/bin/activate
 ```
 
 ### GPU not detected
 
 1. Verify NVIDIA drivers are installed:
+
 ```bash
 nvidia-smi
 ```
 
-2. Check CUDA availability in Python:
+1. Check CUDA availability in Python:
+
 ```bash
 python -c "import torch; print(torch.cuda.is_available())"
 ```
 
-3. If using Docker, ensure `--gpus all` flag is used or NVIDIA Container Toolkit is installed.
+1. If using Docker, ensure `--gpus all` flag is used or NVIDIA Container Toolkit is installed.
 
 ### Port already in use
 
-Change the port by setting the `PORT` environment variable:
+Change the port by setting the `PORT` environment variable or command line:
 
 ```bash
+# Vision Service (default 8002)
+PORT=8002 uvicorn src.main:app --port 8002
+
+# AI Agents Service (default 8003)
+PORT=8003 uvicorn main:app --port 8003
+
+# RAG Service (default 8001)
 PORT=8001 uvicorn src.main:app --port 8001
 ```
 
@@ -191,8 +299,21 @@ pip install huggingface_hub
 huggingface-cli login
 ```
 
+### Ollama not available (AI Agents / RAG)
+
+If using local Ollama models:
+
+```bash
+# Start Ollama server
+ollama serve
+
+# Pull a model
+ollama pull llama3.2
+```
+
 ## Next Steps
 
 - [Architecture Overview](./ARCHITECTURE.md) - Understand the system design
 - [API Reference](./API.md) - Explore all endpoints
 - [Development Guide](./DEVELOPMENT.md) - Set up for contributions
+

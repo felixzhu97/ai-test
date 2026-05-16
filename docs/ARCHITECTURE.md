@@ -44,6 +44,13 @@ The AI-Test Platform is a full-stack application with a microservices-inspired a
 │            │ HTTP Tools│       │ System Tools │                  │
 │            │ (API调用) │       │ (命令执行)   │                  │
 │            └───────────┘       └───────────────┘                  │
+│                              │                                    │
+│                    ┌─────────┴─────────┐                          │
+│                    ▼                   ▼                          │
+│            ┌───────────┐       ┌───────────────┐                 │
+│            │ LangGraph │       │ 50+ Tools    │                 │
+│            │ Workflows │       │ (Specialized) │                 │
+│            └───────────┘       └───────────────┘                 │
 └─────────────────────────────────────────────────────────────────┘
                                   │
                     ┌─────────────┼─────────────┐
@@ -64,8 +71,15 @@ The AI-Test Platform is a full-stack application with a microservices-inspired a
 │                      Port: 8001                                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
 │  │   Document   │  │   Embedding  │  │      LLM Gateway     │  │
-│  │    Loader    │  │    Model     │  │ (OpenAI/Claude/Ollama)│  │
+│  │    Loader   │  │    Model     │  │ (OpenAI/Claude/Ollama)│  │
 │  └──────────────┘  └──────────────┘  └──────────────────────┘  │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │                   Persistence Layer                        │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌───────────────┐  │  │
+│  │  │Cache Manager │  │Session Store │  │Doc Metadata   │  │  │
+│  │  │(Redis/Memory)│  │  (SQLite)    │  │  (SQLite)    │  │  │
+│  │  └──────────────┘  └──────────────┘  └───────────────┘  │  │
+│  └────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
@@ -106,24 +120,39 @@ The AI Agents service uses a **Supervisor-based routing pattern** where a centra
                     │ - System Tools│
                     │ - K8s Tools   │
                     │ - Monitoring  │
-                    │   Tools       │
+                    │ - AIOps Tools│
+                    │ - Pipeline   │
+                    │ - Feature    │
+                    │   Store      │
+                    └───────────────┘
+                              │
+                              ▼
+                    ┌───────────────┐
+                    │ LangGraph     │
+                    │ Workflows     │
+                    ├───────────────┤
+                    │ - RAG Graph   │
+                    │ - LLMOps Graph│
+                    │ - AIOps Graph │
                     └───────────────┘
 ```
 
 ### Agent Descriptions
 
-| Agent | Responsibility | Key Capabilities |
-|-------|---------------|------------------|
-| **Supervisor** | Central coordinator | Intent detection, task routing, result aggregation |
-| **K8s** | Kubernetes management | Pod/Service/Deployment operations, scaling |
-| **VectorDB** | Vector database ops | Embeddings, similarity search, collection management |
-| **RAG** | Document retrieval | Knowledge base management, document indexing |
-| **Pipeline** | Workflow orchestration | DAG execution, step management |
-| **LLMOps** | LLM operations | Training, fine-tuning, evaluation |
-| **AIOps** | Intelligent operations | Anomaly detection, root cause analysis |
-| **Feature Store** | Feature engineering | Feature registration, materialization |
-| **Monitoring** | Observability | Metrics, logs, alerting |
-| **Model** | ML model lifecycle | Version control, deployment, inference |
+
+| Agent             | Responsibility         | Key Capabilities                                     |
+| ----------------- | ---------------------- | ---------------------------------------------------- |
+| **Supervisor**    | Central coordinator    | Intent detection, task routing, result aggregation   |
+| **K8s**           | Kubernetes management  | Pod/Service/Deployment operations, scaling           |
+| **VectorDB**      | Vector database ops    | Embeddings, similarity search, collection management |
+| **RAG**           | Document retrieval     | Knowledge base management, document indexing         |
+| **Pipeline**      | Workflow orchestration | DAG execution, step management                       |
+| **LLMOps**        | LLM operations         | Training, fine-tuning, evaluation                    |
+| **AIOps**         | Intelligent operations | Anomaly detection, root cause analysis               |
+| **Feature Store** | Feature engineering    | Feature registration, materialization                |
+| **Monitoring**    | Observability          | Metrics, logs, alerting                              |
+| **Model**         | ML model lifecycle     | Version control, deployment, inference               |
+
 
 ### Routing Configuration
 
@@ -160,40 +189,132 @@ Local system command execution:
 
 #### Specialized Tools
 
-| Tool | Purpose |
-|------|---------|
-| `k8s_tools.py` | Kubernetes API operations |
-| `vector_tools.py` | Vector database operations |
-| `monitoring_tools.py` | Prometheus/Grafana queries |
-| `model_tools.py` | MLflow integration |
-| `llmops_tools.py` | Experiment tracking |
-| `aiops_tools.py` | Log analysis, anomaly detection |
-| `rag_tools.py` | Document operations |
-| `pipeline_tools.py` | Workflow management |
-| `feature_store_tools.py` | Feast integration |
+
+| Tool                     | Purpose                    | Key Functions                                                                                        |
+| ------------------------ | -------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `k8s_tools.py`           | Kubernetes API operations  | list_pods, get_pod_logs, scale_deployment, create_service                                            |
+| `vector_tools.py`        | Vector database operations | create_collection, upsert_vectors, search, get_collection_info                                       |
+| `monitoring_tools.py`    | Prometheus/Grafana queries | query_metrics, get_prometheus_alerts, get_grafana_dashboard                                          |
+| `model_tools.py`         | MLflow integration         | register_model, get_model_versions, deploy_model, predict                                            |
+| `llmops_tools.py`        | Experiment tracking        | create_experiment, log_metrics, compare_experiments                                                  |
+| `aiops_tools.py`         | Intelligent operations     | detect_anomaly, list_incidents, create_incident, root_cause_analysis, search_logs, get_system_health |
+| `rag_tools.py`           | Document operations        | search_documents, ingest_document, delete_document, list_collections                                 |
+| `pipeline_tools.py`      | Workflow management        | create_pipeline, run_pipeline, list_pipelines, get_run_status, add_step, cancel_run                  |
+| `feature_store_tools.py` | Feature engineering        | create_feature_group, register_feature, get_feature_vector, materialize_features, write_features     |
+
+
+##### AIOps Tools Detail (`aiops_tools.py`)
+
+Comprehensive intelligent operations tools for incident management and system health:
+
+
+| Function                    | Description                                               |
+| --------------------------- | --------------------------------------------------------- |
+| `aiops_detect_anomaly`      | Detect anomalies in metrics with configurable sensitivity |
+| `aiops_list_incidents`      | List incidents with status/severity filtering             |
+| `aiops_create_incident`     | Create new incidents with affected systems                |
+| `aiops_get_system_health`   | Get overall system health overview                        |
+| `aiops_root_cause_analysis` | Perform RCA for incidents with recommendations            |
+| `aiops_search_logs`         | Search logs across services                               |
+| `aiops_acknowledge_alert`   | Acknowledge alerts                                        |
+
+
+##### Pipeline Tools Detail (`pipeline_tools.py`)
+
+ML/DevOps pipeline orchestration tools:
+
+
+| Function            | Description                                    |
+| ------------------- | ---------------------------------------------- |
+| `create_pipeline`   | Define multi-step workflows with DAG structure |
+| `run_pipeline`      | Execute pipelines with parameters              |
+| `list_pipelines`    | List available pipelines                       |
+| `get_pipeline`      | Get pipeline details and step configuration    |
+| `get_run_status`    | Check pipeline execution status                |
+| `list_runs`         | List pipeline runs with filters                |
+| `cancel_run`        | Cancel running pipelines                       |
+| `add_pipeline_step` | Extend existing pipelines                      |
+| `delete_pipeline`   | Remove unused pipelines                        |
+
+
+##### Feature Store Tools Detail (`feature_store_tools.py`)
+
+Feature engineering and management tools:
+
+
+| Function                | Description                                   |
+| ----------------------- | --------------------------------------------- |
+| `create_feature_group`  | Create feature groups with entity definitions |
+| `register_feature`      | Register new features in groups               |
+| `get_feature_vector`    | Retrieve feature vectors for ML models        |
+| `write_features`        | Store computed feature values                 |
+| `materialize_features`  | Backfill historical features for training     |
+| `list_feature_groups`   | List available feature collections            |
+| `create_transformation` | Define custom feature engineering logic       |
+
+
+#### LangGraph Workflows (`graphs/`)
+
+Advanced multi-stage workflows for complex operations:
+
+
+| Graph             | Purpose                                             |
+| ----------------- | --------------------------------------------------- |
+| `rag_graph.py`    | RAG workflows: simple, multi-hop, hybrid, iterative |
+| `llmops_graph.py` | LLM operations and experiment tracking workflows    |
+| `aiops_graph.py`  | AIOps incident response workflows                   |
+
 
 ## Component Details
 
 ### 1. Web Frontend (`apps/web`)
 
-A single-page application built with React 18 and Vite.
+A single-page application built with React 18 and Vite, designed with Apple-style aesthetics.
 
 **Responsibilities:**
+
 - User interface for agent interactions
-- Agent panel management (K8s, Monitoring, VectorDB, etc.)
+- Agent panel management (K8s, Monitoring, VectorDB, AIInfra, etc.)
 - Real-time chat with streaming responses
+- Multi-language internationalization (i18n)
 
 **Tech Stack:**
+
 - React 18
 - Vite (bundler)
 - TypeScript
 - Emotion CSS-in-JS
+
+**Key Components:**
+
+- `components/panels/` - Agent panels (K8sPanel, VectorDBPanel, MonitoringPanel, AIInfraPanel, etc.)
+- `components/agents/` - Chat components (AgentChat, ChatMessage, ToolResult, StatusBadge)
+- `components/panels/AIInfraPanel.tsx` - AI Infrastructure management panel
+- `i18n/` - Internationalization with support for English, Chinese, Japanese, French, Spanish
+- `theme.ts` - Centralized theme system with colors, typography, spacing, shadows
+- `GlobalStyles.tsx` - Global CSS styles
+
+**i18n Support:**
+
+- Browser language auto-detection
+- Persistent language preference (localStorage)
+- Supported languages: en, zh, ja, fr, es
+- React Context-based provider pattern
+
+**Theme System:**
+
+- Apple-inspired design tokens
+- Color palette: primary, surface, text, semantic colors
+- Typography: SF Pro Display/Text, responsive font sizes
+- Shadows, spacing, border radius, transitions
+- CSS custom properties export
 
 ### 2. Backend Server (`apps/server`)
 
 An Express.js server providing utility endpoints.
 
 **Responsibilities:**
+
 - Health check endpoint
 - Random ID generation
 - Utility functions (clamp, delay)
@@ -203,18 +324,23 @@ An Express.js server providing utility endpoints.
 The core multi-agent orchestration service.
 
 **Responsibilities:**
+
 - Supervisor-based agent coordination
 - Task routing and delegation
 - Tool execution and result aggregation
 - LangGraph workflow management
 
 **Tech Stack:**
+
 - FastAPI + Python 3.10+
 - LangChain / LangGraph
 - Ollama (local LLM)
 
 **Features:**
-- 10 specialized agents
+
+- 10 specialized agents (Supervisor, K8s, VectorDB, RAG, Pipeline, LLMOps, AIOps, Feature Store, Monitoring, Model)
+- 50+ specialized tools across all agents
+- LangGraph workflows for complex multi-stage operations
 - HTTP and system command tools
 - Streaming responses via SSE
 - Agent-to-agent delegation
@@ -224,19 +350,57 @@ The core multi-agent orchestration service.
 Computer vision capabilities.
 
 **Responsibilities:**
+
 - Image processing and validation
 - Model inference (YOLO, BLIP, PaddleOCR)
 - REST API endpoints
 
 ### 5. RAG Service (`services/rag`)
 
-Retrieval-Augmented Generation service.
+Retrieval-Augmented Generation service with enhanced persistence layer.
 
 **Responsibilities:**
+
 - Document ingestion and processing
 - Semantic vector search with Qdrant
 - LLM-powered question answering
 - Conversation history management
+- Multi-layer caching for performance
+
+**Persistence Layer:**
+
+
+| Component              | Description                                          |
+| ---------------------- | ---------------------------------------------------- |
+| `cache_manager.py`     | Multi-layer cache manager with Redis/Memory backends |
+| `session_store.py`     | SQLite-based session persistence for chat history    |
+| `document_metadata.py` | Document metadata tracking and indexing history      |
+
+
+**Cache Manager (`cache_manager.py`):**
+
+- LLM response caching (TTL: 1 hour)
+- Retrieval result caching (TTL: 30 minutes)
+- Embedding caching (TTL: 24 hours)
+- Supports Redis and in-memory backends
+- Hash-based cache keys for efficient lookups
+- Cache statistics and invalidation APIs
+
+**Session Store (`session_store.py`):**
+
+- SQLite-based chat session persistence
+- Session CRUD operations with title/message tracking
+- Full-text search across sessions
+- Session export to JSON
+- Automatic cleanup of old sessions (configurable retention)
+
+**Document Metadata Store (`document_metadata.py`):**
+
+- Document record tracking (title, source, size, status)
+- Chunk-level metadata management
+- Indexing history with duration tracking
+- Version control for incremental updates
+- Status tracking: pending, indexing, completed, failed
 
 ## Data Flow
 
@@ -279,7 +443,24 @@ ai-test/
 │   │   ├── src/
 │   │   │   ├── components/
 │   │   │   │   ├── agents/     # Agent chat components
-│   │   │   │   └── panels/     # K8sPanel, VectorDBPanel, etc.
+│   │   │   │   │   ├── AgentChat.tsx
+│   │   │   │   │   ├── ChatMessage.tsx
+│   │   │   │   │   ├── ToolResult.tsx
+│   │   │   │   │   └── StatusBadge.tsx
+│   │   │   │   └── panels/     # Agent management panels
+│   │   │   │       ├── K8sPanel.tsx
+│   │   │   │       ├── VectorDBPanel.tsx
+│   │   │   │       ├── MonitoringPanel.tsx
+│   │   │   │       ├── AIInfraPanel.tsx      # AI Infrastructure
+│   │   │   │       ├── AIOpsPanel.tsx
+│   │   │   │       ├── LLMOpsPanel.tsx
+│   │   │   │       ├── ModelPanel.tsx
+│   │   │   │       └── SupervisorPanel.tsx
+│   │   │   ├── i18n/          # Internationalization
+│   │   │   │   ├── index.tsx   # i18n provider
+│   │   │   │   └── locales.ts   # Translation strings
+│   │   │   ├── theme.ts        # Theme system
+│   │   │   ├── GlobalStyles.tsx # Global styles
 │   │   │   └── App.tsx
 │   │   └── package.json
 │   └── server/                 # Express.js server
@@ -295,13 +476,33 @@ ai-test/
 │   │   │   ├── supervisor.py   # Central coordinator
 │   │   │   ├── k8s_agent.py    # Kubernetes management
 │   │   │   ├── vector_db_agent.py  # Vector operations
-│   │   │   └── ...
+│   │   │   ├── rag_agent.py    # RAG operations
+│   │   │   ├── pipeline_agent.py # Pipeline orchestration
+│   │   │   ├── llmops_agent.py # LLM operations
+│   │   │   ├── aiops_agent.py  # AI operations
+│   │   │   ├── feature_store_agent.py # Feature engineering
+│   │   │   ├── monitoring_agent.py # Observability
+│   │   │   └── model_agent.py   # ML model lifecycle
 │   │   ├── core/               # Base classes, prompts, schemas
+│   │   │   ├── base.py         # Agent base class
+│   │   │   ├── prompts.py      # Prompt templates
+│   │   │   └── schemas.py      # Pydantic schemas
 │   │   ├── tools/              # All tool implementations
 │   │   │   ├── http_tools.py   # HTTP API calls
 │   │   │   ├── system_tools.py # Shell commands
-│   │   │   └── ...
+│   │   │   ├── k8s_tools.py    # Kubernetes operations
+│   │   │   ├── vector_tools.py # VectorDB operations
+│   │   │   ├── monitoring_tools.py # Prometheus/Grafana
+│   │   │   ├── model_tools.py  # MLflow integration
+│   │   │   ├── llmops_tools.py # Experiment tracking
+│   │   │   ├── aiops_tools.py  # Incident management
+│   │   │   ├── rag_tools.py    # Document operations
+│   │   │   ├── pipeline_tools.py # Workflow management
+│   │   │   └── feature_store_tools.py # Feature engineering
 │   │   ├── graphs/             # LangGraph workflows
+│   │   │   ├── rag_graph.py    # RAG workflows
+│   │   │   ├── llmops_graph.py # LLM operations
+│   │   │   └── aiops_graph.py # AIOps workflows
 │   │   └── main.py             # FastAPI app entry
 │   ├── vision-service/         # Vision AI service
 │   │   ├── src/
@@ -327,9 +528,15 @@ ai-test/
 │       │   │   ├── llm_gateway.py   # LLM abstraction
 │       │   │   ├── embedding.py    # Embedding model
 │       │   │   └── vector_store.py # Qdrant integration
-│       │   └── services/
-│       │       ├── ingestion.py    # Document ingestion
-│       │       └── rag_chain.py    # RAG chain
+│       │   ├── services/
+│       │   │   ├── ingestion.py    # Document ingestion
+│       │   │   └── rag_chain.py    # RAG chain
+│       │   ├── persistence/        # Persistence layer
+│       │   │   ├── cache_manager.py      # Multi-layer cache
+│       │   │   ├── session_store.py      # Session persistence
+│       │   │   └── document_metadata.py  # Document metadata
+│       │   └── document_loader/
+│       │       └── loader.py       # Document loaders
 │       └── ...
 └── docs/                       # Documentation
 ```
@@ -338,27 +545,33 @@ ai-test/
 
 ### AI Agents Service (Port 8003)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/health` | Health check |
-| `GET` | `/agents` | List all available agents |
-| `POST` | `/api/agents/supervisor/invoke` | Invoke supervisor (chat) |
-| `POST` | `/api/agents/{agent_name}/invoke` | Invoke specific agent |
+
+| Method | Endpoint                          | Description               |
+| ------ | --------------------------------- | ------------------------- |
+| `GET`  | `/health`                         | Health check              |
+| `GET`  | `/agents`                         | List all available agents |
+| `POST` | `/api/agents/supervisor/invoke`   | Invoke supervisor (chat)  |
+| `POST` | `/api/agents/{agent_name}/invoke` | Invoke specific agent     |
+
 
 ### Vision Service (Port 8002)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/vision/detect` | Object detection |
-| `POST` | `/vision/caption` | Image captioning |
-| `POST` | `/vision/ocr` | Text extraction (OCR) |
+
+| Method | Endpoint          | Description           |
+| ------ | ----------------- | --------------------- |
+| `POST` | `/vision/detect`  | Object detection      |
+| `POST` | `/vision/caption` | Image captioning      |
+| `POST` | `/vision/ocr`     | Text extraction (OCR) |
+
 
 ### RAG Service (Port 8001)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
+
+| Method | Endpoint            | Description      |
+| ------ | ------------------- | ---------------- |
 | `POST` | `/documents/ingest` | Ingest documents |
-| `POST` | `/chat` | Chat with RAG |
+| `POST` | `/chat`             | Chat with RAG    |
+
 
 ## Configuration
 
@@ -385,14 +598,13 @@ MAX_CONCURRENT_REQUESTS=4      # Request queue limit
 ## Deployment Options
 
 1. **Docker Compose (Recommended)**
-   - GPU variant for production
-   - CPU variant for development/low-resource environments
-
+  - GPU variant for production
+  - CPU variant for development/low-resource environments
 2. **Kubernetes**
-   - Use GPU node pools for AI service
-   - Scale horizontally with load balancer
-
+  - Use GPU node pools for AI service
+  - Scale horizontally with load balancer
 3. **Cloud Services**
-   - AWS: ECS + EKS with GPU instances
-   - GCP: Cloud Run with GPU
-   - Azure: Container Instances with GPU
+  - AWS: ECS + EKS with GPU instances
+  - GCP: Cloud Run with GPU
+  - Azure: Container Instances with GPU
+

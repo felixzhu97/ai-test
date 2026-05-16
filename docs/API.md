@@ -552,15 +552,27 @@ curl -X POST "http://localhost:8002/vision/analyze?task=analyze_image" \
 
 Base URL: `http://localhost:8001`
 
+Production RAG service with Qdrant vector store for document retrieval and knowledge base management.
+
 ### Endpoints Overview
 
-
-| Method | Endpoint            | Description      |
-| ------ | ------------------- | ---------------- |
-| `GET`  | `/health`           | Health check     |
-| `POST` | `/documents/ingest` | Ingest documents |
-| `POST` | `/chat`             | Chat with RAG    |
-
+| Method | Endpoint | Description |
+| ------ | -------- | ----------- |
+| `GET` | `/health` | Health check |
+| `GET` | `/` | Service info |
+| `POST` | `/documents/upload` | Upload and ingest a document |
+| `POST` | `/documents/ingest-url` | Ingest document from URL |
+| `GET` | `/documents/` | List all documents |
+| `GET` | `/documents/{doc_id}/stats` | Get document statistics |
+| `DELETE` | `/documents/{doc_id}` | Delete a document |
+| `POST` | `/chat/` | Chat with RAG (non-streaming) |
+| `POST` | `/chat/stream` | Chat with RAG (streaming) |
+| `GET` | `/chat/history/{session_id}` | Get chat history |
+| `DELETE` | `/chat/history/{session_id}` | Clear chat history |
+| `POST` | `/chat/ingest-text` | Ingest raw text directly |
+| `POST` | `/reload` | Reload configuration |
+| `GET` | `/cache/stats` | Get cache statistics |
+| `POST` | `/cache/clear` | Clear all caches |
 
 ---
 
@@ -568,74 +580,647 @@ Base URL: `http://localhost:8001`
 
 #### `GET /health`
 
+Check service health and connectivity status.
+
 **Response:**
 
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "qdrant_connected": true,
+  "embedding_model": "nomic-embed-text",
+  "llm_provider": "ollama"
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `status` | string | `"ok"` if healthy, `"degraded"` if Qdrant unavailable |
+| `qdrant_connected` | boolean | Whether Qdrant vector store is connected |
+| `embedding_model` | string | Name of the embedding model |
+| `llm_provider` | string | LLM provider (`ollama`, `openai`, etc.) |
+
+---
+
+### Service Info
+
+#### `GET /`
+
+Get service information and available endpoints.
+
+**Response:**
+
+```json
+{
+  "name": "RAG Service",
+  "version": "0.2.0",
+  "description": "Production RAG service with Qdrant vector store",
+  "endpoints": {
+    "health": "/health",
+    "documents": {
+      "upload": "POST /documents/upload",
+      "ingest_url": "POST /documents/ingest-url",
+      "list": "GET /documents/",
+      "list_from_db": "GET /documents/database",
+      "stats": "GET /documents/{doc_id}/stats",
+      "delete": "DELETE /documents/{doc_id}"
+    },
+    "chat": {
+      "query": "POST /chat/",
+      "stream": "POST /chat/stream",
+      "history": "GET /chat/history/{session_id}",
+      "ingest_text": "POST /chat/ingest-text"
+    }
+  },
+  "config": {
+    "llm_provider": "ollama",
+    "llm_model": "qwen2.5:7b",
+    "embedding_model": "nomic-embed-text"
+  }
 }
 ```
 
 ---
 
-### Document Ingestion
+### Document Management
 
-#### `POST /documents/ingest`
+#### Upload Document
 
-Ingest documents into the knowledge base.
+##### `POST /documents/upload`
+
+Upload and ingest a document file (PDF, Markdown, Text).
 
 **Request:**
 
+- **Content-Type:** `multipart/form-data`
+- **Body:**
+  - `file` (required): Document file (PDF, MD, TXT)
+  - `title` (optional): Document title (defaults to filename)
+  - `collection` (optional): Collection name
+
+**Supported File Types:**
+
+| Extension | Source Type |
+| --------- | ----------- |
+| `.md`, `.markdown` | Markdown |
+| `.pdf` | PDF |
+| `.txt`, `.text` | Text |
+
+**Response:**
+
 ```json
 {
-  "text": "Your document content here...",
-  "metadata": {
-    "source": "manual",
-    "category": "technical"
+  "doc_id": "550e8400-e29b-41d4-a716-446655440000",
+  "filename": "document.pdf",
+  "chunks": 15,
+  "status": "success"
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `doc_id` | string | Unique document identifier |
+| `filename` | string | Original filename |
+| `chunks` | int | Number of text chunks created |
+| `status` | string | `"success"` or `"failed"` |
+
+**Example:**
+
+```bash
+curl -X POST http://localhost:8001/documents/upload \
+  -F "file=@document.pdf" \
+  -F "title=My Document"
+```
+
+---
+
+#### Ingest URL
+
+##### `POST /documents/ingest-url`
+
+Ingest a document from a web URL.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | URL to ingest |
+| `title` | string | No | Document title |
+
+**Response:**
+
+```json
+{
+  "doc_id": "550e8400-e29b-41d4-a716-446655440001",
+  "filename": "https://example.com/article",
+  "chunks": 8,
+  "status": "success"
+}
+```
+
+**Example:**
+
+```bash
+curl -X POST "http://localhost:8001/documents/ingest-url?url=https://example.com/doc&title=Article"
+```
+
+---
+
+#### List Documents
+
+##### `GET /documents/`
+
+List all uploaded documents.
+
+**Response:**
+
+```json
+{
+  "documents": [
+    {
+      "doc_id": "550e8400-e29b-41d4-a716-446655440000",
+      "filename": "document.pdf",
+      "total_chunks": 15,
+      "source": "pdf",
+      "uploaded_at": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `documents` | array | List of document records |
+| `documents[].doc_id` | string | Document identifier |
+| `documents[].filename` | string | Document filename |
+| `documents[].total_chunks` | int | Number of chunks |
+| `documents[].source` | string | Source type (`pdf`, `markdown`, `web`, `text`) |
+| `documents[].uploaded_at` | string | Upload timestamp |
+| `total` | int | Total number of documents |
+
+---
+
+#### Document Statistics
+
+##### `GET /documents/{doc_id}/stats`
+
+Get detailed statistics for a specific document.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `doc_id` | string | Document identifier |
+
+**Response:**
+
+```json
+{
+  "doc_id": "550e8400-e29b-41d4-a716-446655440000",
+  "filename": "document.pdf",
+  "title": "My Document",
+  "total_chunks": 15,
+  "source": "pdf",
+  "status": "completed",
+  "created_at": "2024-01-15T10:30:00Z",
+  "indexed_at": "2024-01-15T10:30:05Z",
+  "file_size": 245678,
+  "vector_stats": {
+    "total_vectors": 15,
+    "collection_name": "rag_collection"
   }
 }
 ```
+
+---
+
+#### Delete Document
+
+##### `DELETE /documents/{doc_id}`
+
+Delete a document and all its associated vectors.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `doc_id` | string | Document identifier |
 
 **Response:**
 
 ```json
 {
   "status": "success",
-  "message": "Document ingested successfully",
-  "doc_id": "doc_abc123"
+  "message": "Document 550e8400-e29b-41d4-a716-446655440000 deleted"
 }
+```
+
+**Example:**
+
+```bash
+curl -X DELETE http://localhost:8001/documents/550e8400-e29b-41d4-a716-446655440000
 ```
 
 ---
 
 ### Chat with RAG
 
-#### `POST /chat`
+#### Non-Streaming Chat
 
-Ask questions about the knowledge base.
+##### `POST /chat/`
+
+Query the knowledge base and get a response with sources.
 
 **Request:**
 
 ```json
 {
   "query": "What is the main topic of the documents?",
-  "top_k": 5
+  "session_id": "optional-session-id",
+  "doc_ids": ["doc-id-1", "doc-id-2"],
+  "top_k": 5,
+  "temperature": 0.7
 }
 ```
+
+**Request Fields:**
+
+| Field | Type | Required | Default | Description |
+| ----- | ---- | -------- | ------- | ----------- |
+| `query` | string | Yes | - | User question |
+| `session_id` | string | No | Auto-generated | Session identifier for conversation continuity |
+| `doc_ids` | array | No | All docs | Filter to specific documents |
+| `top_k` | int | No | 5 | Number of context chunks to retrieve (1-20) |
+| `temperature` | float | No | 0.7 | LLM temperature (0-2) |
 
 **Response:**
 
 ```json
 {
-  "answer": "Based on the documents, the main topic appears to be...",
+  "answer": "Based on the documents, the main topic is artificial intelligence...",
   "sources": [
     {
-      "content": "Document excerpt...",
+      "text": "Document excerpt text...",
       "score": 0.95,
-      "metadata": {"source": "manual"}
+      "metadata": {
+        "source": "pdf",
+        "filename": "document.pdf",
+        "doc_id": "550e8400-e29b-41d4-a716-446655440000"
+      }
     }
-  ]
+  ],
+  "session_id": "session-uuid-here",
+  "model": "qwen2.5:7b",
+  "processing_time_ms": 1234.5
 }
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `answer` | string | Generated response |
+| `sources` | array | Retrieved context chunks |
+| `sources[].text` | string | Source text excerpt |
+| `sources[].score` | float | Relevance score (0-1) |
+| `sources[].metadata` | object | Source metadata |
+| `session_id` | string | Session identifier |
+| `model` | string | LLM model used |
+| `processing_time_ms` | float | Processing time |
+
+---
+
+#### Streaming Chat
+
+##### `POST /chat/stream`
+
+Query the knowledge base with streaming response.
+
+**Request:** Same as non-streaming chat.
+
+**Response:** Server-Sent Events (SSE) stream.
+
+```
+data: Based
+data:  on
+data:  the
+data:  documents
+data: , the
+data:  main
+...
+
+data: [DONE]
+
+event: sources
+data: [{"text": "...", "score": 0.95, "metadata": {...}}]
+
+event: meta
+data: {"processing_time_ms": 1234.5, "model": "qwen2.5:7b"}
+```
+
+**Event Types:**
+
+| Event | Description |
+| ----- | ----------- |
+| `data: ...` | Response text chunks |
+| `data: [DONE]` | End of text stream |
+| `event: sources` | Retrieved source documents |
+| `event: meta` | Response metadata |
+
+**Response Headers:**
+
+| Header | Description |
+| ------ | ----------- |
+| `X-Session-Id` | Session identifier |
+
+**Example:**
+
+```bash
+curl -X POST http://localhost:8001/chat/stream \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is machine learning?"}' \
+  -N
+```
+
+---
+
+#### Get Chat History
+
+##### `GET /chat/history/{session_id}`
+
+Retrieve chat history for a session.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `session_id` | string | Session identifier |
+
+**Response:**
+
+```json
+{
+  "session_id": "session-uuid-here",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is AI?",
+      "timestamp": 1705312200.123,
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "AI stands for Artificial Intelligence...",
+      "timestamp": 1705312205.456,
+      "sources": [
+        {
+          "text": "Source excerpt...",
+          "score": 0.92,
+          "metadata": {}
+        }
+      ]
+    }
+  ],
+  "total": 2
+}
+```
+
+---
+
+#### Clear Chat History
+
+##### `DELETE /chat/history/{session_id}`
+
+Delete all messages for a session.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `session_id` | string | Session identifier |
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "message": "History for session session-uuid-here cleared"
+}
+```
+
+---
+
+#### Ingest Text Directly
+
+##### `POST /chat/ingest-text`
+
+Ingest raw text as a document without uploading a file.
+
+**Request Parameters:**
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | Yes | Text content to ingest |
+| `title` | string | No | Document title (default: "Text Document") |
+| `doc_id` | string | No | Custom document ID |
+
+**Response:**
+
+```json
+{
+  "doc_id": "550e8400-e29b-41d4-a716-446655440002",
+  "title": "My Notes",
+  "chunks": 3,
+  "status": "success"
+}
+```
+
+**Example:**
+
+```bash
+curl -X POST "http://localhost:8001/chat/ingest-text?title=MyNotes" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "This is the text content to ingest into the knowledge base."}'
+```
+
+---
+
+### Configuration Endpoints
+
+#### Reload Configuration
+
+##### `POST /reload`
+
+Reload configuration from environment variables.
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "config": {
+    "llm_provider": "ollama",
+    "llm_model": "qwen2.5:7b",
+    "embedding_model": "nomic-embed-text"
+  }
+}
+```
+
+---
+
+#### Cache Statistics
+
+##### `GET /cache/stats`
+
+Get statistics for all caches and stores.
+
+**Response:**
+
+```json
+{
+  "cache": {
+    "hits": 150,
+    "misses": 50,
+    "hit_rate": 0.75
+  },
+  "documents": {
+    "total": 10,
+    "by_source": {
+      "pdf": 5,
+      "markdown": 3,
+      "web": 2
+    }
+  },
+  "sessions": {
+    "total": 25,
+    "total_messages": 150
+  }
+}
+```
+
+---
+
+#### Clear Cache
+
+##### `POST /cache/clear`
+
+Clear all caches.
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "message": "Cache cleared"
+}
+```
+
+---
+
+### Python Examples
+
+```python
+import requests
+
+# Upload a document
+with open("document.pdf", "rb") as f:
+    response = requests.post(
+        "http://localhost:8001/documents/upload",
+        files={"file": f},
+        data={"title": "My Document"}
+    )
+print(response.json())
+
+# List documents
+response = requests.get("http://localhost:8001/documents/")
+print(response.json())
+
+# Chat query
+response = requests.post(
+    "http://localhost:8001/chat/",
+    json={
+        "query": "What is the main topic?",
+        "top_k": 5
+    }
+)
+print(response.json())
+
+# Streaming chat
+with requests.post(
+    "http://localhost:8001/chat/stream",
+    json={"query": "Explain this topic"},
+    stream=True
+) as r:
+    for line in r.iter_lines():
+        if line:
+            print(line.decode())
+
+# Get chat history
+response = requests.get("http://localhost:8001/chat/history/session-123")
+print(response.json())
+
+# Ingest text directly
+response = requests.post(
+    "http://localhost:8001/chat/ingest-text",
+    params={"title": "My Notes"},
+    json={"text": "Content to ingest..."}
+)
+print(response.json())
+```
+
+---
+
+### JavaScript Examples
+
+```javascript
+// Upload document
+const formData = new FormData();
+formData.append("file", fileStream);
+formData.append("title", "Document Title");
+
+const uploadRes = await fetch("http://localhost:8001/documents/upload", {
+  method: "POST",
+  body: formData,
+});
+const uploadData = await uploadRes.json();
+
+// Chat query
+const chatRes = await fetch("http://localhost:8001/chat/", {
+  method: "POST",
+  headers: {"Content-Type": "application/json"},
+  body: JSON.stringify({
+    query: "What is the content about?",
+    top_k: 5
+  }),
+});
+const chatData = await chatRes.json();
+
+// Streaming chat
+const streamRes = await fetch("http://localhost:8001/chat/stream", {
+  method: "POST",
+  headers: {"Content-Type": "application/json"},
+  body: JSON.stringify({ query: "Explain this" }),
+});
+
+const reader = streamRes.body.getReader();
+const decoder = new TextDecoder();
+
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  console.log(decoder.decode(value));
+}
+
+// Get history
+const historyRes = await fetch("http://localhost:8001/chat/history/session-123");
+const history = await historyRes.json();
 ```
 
 ---
@@ -795,9 +1380,46 @@ curl -X POST http://localhost:8002/vision/detect \
   -F "file=@photo.jpg" \
   -F "conf=0.5"
 
-# RAG
-curl -X POST http://localhost:8001/chat \
+# RAG - Upload document
+curl -X POST http://localhost:8001/documents/upload \
+  -F "file=@document.pdf" \
+  -F "title=My Document"
+
+# RAG - Ingest from URL
+curl -X POST "http://localhost:8001/documents/ingest-url?url=https://example.com/doc"
+
+# RAG - List documents
+curl http://localhost:8001/documents/
+
+# RAG - Delete document
+curl -X DELETE http://localhost:8001/documents/{doc_id}
+
+# RAG - Chat query
+curl -X POST http://localhost:8001/chat/ \
   -H "Content-Type: application/json" \
   -d '{"query": "What is machine learning?"}'
+
+# RAG - Streaming chat
+curl -X POST http://localhost:8001/chat/stream \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Explain this topic"}'
+
+# RAG - Get chat history
+curl http://localhost:8001/chat/history/{session_id}
+
+# RAG - Ingest text directly
+curl -X POST "http://localhost:8001/chat/ingest-text?title=MyNotes" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Content to ingest"}'
+
+# RAG - Clear chat history
+curl -X DELETE http://localhost:8001/chat/history/{session_id}
+
+# RAG - Cache stats
+curl http://localhost:8001/cache/stats
+
+# RAG - Reload config
+curl -X POST http://localhost:8001/reload
+```
 ```
 
