@@ -1,131 +1,126 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import Optional
-import asyncio
-import logging
-from concurrent.futures import ThreadPoolExecutor
+"""Image generation API endpoints.
 
-from ..application.dtos.image_dtos import (
-    ImageGenRequest,
-    ImageGenResponse,
-    ImageVariationRequest,
-    ImageUpscaleRequest,
-    AvailableModelsResponse,
+This module provides FastAPI routes for image generation operations.
+All endpoints delegate to application layer use cases.
+"""
+
+from fastapi import APIRouter, HTTPException, Depends
+import logging
+
+from ..application.dtos.image_gen_dtos import (
+    GenerateImageInputDTO,
+    GenerateImageOutputDTO,
+    GenerateVariationInputDTO,
+    GenerateVariationOutputDTO,
+    UpscaleImageInputDTO,
+    UpscaleImageOutputDTO,
+    ListModelsOutputDTO,
 )
-from ..core.dependencies import get_generator
-from ..core.image_gen_config import get_image_gen_settings
-from ..models.text_to_image import TextToImageGenerator
+from ..application.use_cases.generate_image import (
+    GenerateImageUseCase,
+    GenerateVariationUseCase,
+    UpscaleImageUseCase,
+    ListModelsUseCase,
+)
+from ..core.dependencies import (
+    get_generate_image_use_case,
+    get_generate_variation_use_case,
+    get_upscale_image_use_case,
+    get_list_models_use_case,
+)
 
 router = APIRouter(prefix="/image-gen", tags=["image-generation"])
 logger = logging.getLogger(__name__)
 
-_executor = ThreadPoolExecutor(max_workers=2)
 
-
-@router.post("/generate", response_model=ImageGenResponse)
+@router.post("/generate", response_model=GenerateImageOutputDTO)
 async def generate_image(
-    request: ImageGenRequest,
-    generator: TextToImageGenerator = Depends(get_generator)
+    request: GenerateImageInputDTO,
+    use_case: GenerateImageUseCase = Depends(get_generate_image_use_case),
 ):
-    """Generate images from text prompt using Stable Diffusion."""
-    if not request.prompt.strip():
-        raise HTTPException(400, "Prompt cannot be empty")
-    
-    settings = get_image_gen_settings()
-    
-    if request.width > settings.MAX_IMAGE_SIZE or request.height > settings.MAX_IMAGE_SIZE:
-        raise HTTPException(
-            400, 
-            f"Image dimensions cannot exceed {settings.MAX_IMAGE_SIZE}px"
-        )
-    
-    if request.num_inference_steps > 150:
-        raise HTTPException(400, "Maximum 150 inference steps allowed")
+    """Generate images from text prompt.
 
+    Uses Stable Diffusion model for image generation.
+    """
     try:
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            _executor,
-            generator.generate,
-            request
-        )
+        result = await use_case.execute(request)
         return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     except Exception as e:
         logger.error(f"Image generation failed: {e}")
         raise HTTPException(500, f"Generation failed: {str(e)}")
 
 
-@router.post("/variation", response_model=ImageGenResponse)
+@router.post("/variation", response_model=GenerateVariationOutputDTO)
 async def generate_variation(
-    request: ImageVariationRequest,
-    generator: TextToImageGenerator = Depends(get_generator)
+    request: GenerateVariationInputDTO,
+    use_case: GenerateVariationUseCase = Depends(get_generate_variation_use_case),
 ):
     """Generate variations of an existing image."""
-    if not request.prompt.strip():
-        raise HTTPException(400, "Prompt cannot be empty")
-    
     try:
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            _executor,
-            generator.generate_variation,
-            request
-        )
+        result = await use_case.execute(request)
         return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     except Exception as e:
         logger.error(f"Variation generation failed: {e}")
         raise HTTPException(500, f"Variation failed: {str(e)}")
 
 
-@router.post("/upscale", response_model=ImageGenResponse)
+@router.post("/upscale", response_model=UpscaleImageOutputDTO)
 async def upscale_image(
-    request: ImageUpscaleRequest,
-    generator: TextToImageGenerator = Depends(get_generator)
+    request: UpscaleImageInputDTO,
+    use_case: UpscaleImageUseCase = Depends(get_upscale_image_use_case),
 ):
     """Upscale an image using AI-powered upsampling."""
-    if request.scale not in (2, 4):
-        raise HTTPException(400, "Scale must be 2 or 4")
-
     try:
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            _executor,
-            generator.upscale,
-            request
-        )
+        result = await use_case.execute(request)
         return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     except Exception as e:
         logger.error(f"Upscaling failed: {e}")
         raise HTTPException(500, f"Upscaling failed: {str(e)}")
 
 
-@router.get("/models", response_model=AvailableModelsResponse)
+@router.get("/models", response_model=ListModelsOutputDTO)
 async def list_models(
-    generator: TextToImageGenerator = Depends(get_generator)
+    use_case: ListModelsUseCase = Depends(get_list_models_use_case),
 ):
     """Get information about available image generation models."""
-    return generator.get_available_models()
+    try:
+        return use_case.execute()
+    except Exception as e:
+        logger.error(f"Failed to list models: {e}")
+        raise HTTPException(500, f"Failed to list models: {str(e)}")
 
 
 @router.post("/cache/clear")
 async def clear_cache(
-    generator: TextToImageGenerator = Depends(get_generator)
+    use_case: UpscaleImageUseCase = Depends(get_upscale_image_use_case),
 ):
     """Clear the model cache to free GPU memory."""
-    generator.clear_cache()
+    from ..core.dependencies import get_image_generation_service
+
+    service = get_image_generation_service()
+    service.clear_cache()
     return {"status": "ok", "message": "Cache cleared successfully"}
 
 
 @router.get("/health")
 async def health_check(
-    generator: TextToImageGenerator = Depends(get_generator)
+    use_case: ListModelsUseCase = Depends(get_list_models_use_case),
 ):
     """Check the status of the image generation service."""
     import torch
-    
+    from ..core.dependencies import get_image_generation_service
+
+    service = get_image_generation_service()
+
     return {
         "status": "ok",
-        "device": generator.device,
+        "device": service.device,
         "cuda_available": torch.cuda.is_available(),
         "cuda_device_count": torch.cuda.device_count() if torch.cuda.is_available() else 0,
-        "loaded_pipelines": list(generator._pipelines.keys()),
     }

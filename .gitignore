@@ -43,3 +43,6 @@ volumes/
 # Cache
 .cache/
 .pytest_cache/
+
+# SQLite databases
+*.db

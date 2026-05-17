@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     MODEL_CACHE_DIR: str = "./models"
     MAX_CONCURRENT_REQUESTS: int = 4
     HF_ENDPOINT: str = ""
+    VIDEO_PROVIDER: VideoProvider = VideoProvider.MOCK
 
     class Config:
         env_file = ".env"

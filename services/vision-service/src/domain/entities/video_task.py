@@ -2,9 +2,15 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from enum import Enum
 import uuid
+
+from ..events.video_events import (
+    VideoTaskCreatedEvent,
+    VideoTaskCompletedEvent,
+    VideoTaskFailedEvent,
+)
 
 
 class VideoTaskStatus(str, Enum):
@@ -16,6 +22,12 @@ class VideoTaskStatus(str, Enum):
 
 class InvalidStateTransitionError(ValueError):
     """Raised when an invalid state transition is attempted."""
+
+    pass
+
+
+class TaskNotFoundError(ValueError):
+    """Raised when a task is not found."""
 
     pass
 
@@ -37,6 +49,26 @@ class VideoTask:
     created_at: datetime = field(default_factory=datetime.now)
     completed_at: Optional[datetime] = None
     processing_time_seconds: Optional[float] = None
+    _events: List[object] = field(default_factory=list, repr=False)
+
+    @classmethod
+    def created(cls, prompt: str) -> "VideoTask":
+        """Factory method to create a new task and publish created event."""
+        task = cls(prompt=prompt)
+        task._events.append(
+            VideoTaskCreatedEvent(
+                task_id=task.task_id,
+                prompt=task.prompt,
+                timestamp=task.created_at,
+            )
+        )
+        return task
+
+    def pop_events(self) -> List[object]:
+        """Retrieve and clear all collected domain events."""
+        events = self._events.copy()
+        self._events.clear()
+        return events
 
     def mark_processing(self) -> None:
         """Transition to processing state."""
@@ -60,6 +92,15 @@ class VideoTask:
             self.processing_time_seconds = (
                 self.completed_at - self.created_at
             ).total_seconds()
+        self._events.append(
+            VideoTaskCompletedEvent(
+                task_id=self.task_id,
+                video_url=self.video_url,
+                thumbnail_url=self.thumbnail_url,
+                processing_time_seconds=self.processing_time_seconds,
+                timestamp=self.completed_at,
+            )
+        )
 
     def mark_failed(self, error_message: str) -> None:
         """Mark task as failed with error."""
@@ -68,6 +109,13 @@ class VideoTask:
         self.status = VideoTaskStatus.FAILED
         self.error_message = error_message
         self.completed_at = datetime.now()
+        self._events.append(
+            VideoTaskFailedEvent(
+                task_id=self.task_id,
+                error_message=self.error_message,
+                timestamp=self.completed_at,
+            )
+        )
 
     @property
     def is_terminal(self) -> bool:

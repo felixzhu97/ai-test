@@ -44,12 +44,6 @@ class ImageGeneration:
         """Validate generation parameters."""
         if not self.prompt.strip():
             raise ValueError("Prompt cannot be empty")
-        if self.width < 256 or self.height < 256:
-            raise ValueError("Dimensions must be at least 256px")
-        if self.width > 2048 or self.height > 2048:
-            raise ValueError("Dimensions cannot exceed 2048px")
-        if self.width % 8 != 0 or self.height % 8 != 0:
-            raise ValueError("Dimensions must be divisible by 8")
         if not 1 <= self.num_inference_steps <= 150:
             raise ValueError("Inference steps must be between 1 and 150")
         if not 1.0 <= self.guidance_scale <= 20.0:

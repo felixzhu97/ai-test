@@ -9,6 +9,15 @@ from .image_dtos import (
     ImageGenerationRequestDTO,
     ImageGenerationResponseDTO,
 )
+from .image_gen_dtos import (
+    GenerateImageInputDTO,
+    GenerateImageOutputDTO,
+    GenerateVariationInputDTO,
+    GenerateVariationOutputDTO,
+    UpscaleImageInputDTO,
+    UpscaleImageOutputDTO,
+    ListModelsOutputDTO,
+)
 from .vision_dtos import (
     TaskType,
     DetectionResult,
@@ -26,6 +35,14 @@ __all__ = [
     # Image DTOs
     "ImageGenerationRequestDTO",
     "ImageGenerationResponseDTO",
+    # Image Gen DTOs
+    "GenerateImageInputDTO",
+    "GenerateImageOutputDTO",
+    "GenerateVariationInputDTO",
+    "GenerateVariationOutputDTO",
+    "UpscaleImageInputDTO",
+    "UpscaleImageOutputDTO",
+    "ListModelsOutputDTO",
     # Vision DTOs
     "TaskType",
     "DetectionResult",

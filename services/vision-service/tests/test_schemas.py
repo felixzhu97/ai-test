@@ -1,11 +1,11 @@
 import pytest
-from src.schemas.vision import (
+from src.application.dtos.vision_dtos import (
     TaskType,
     DetectionResult,
-    DetectionResponse,
-    CaptionResponse,
+    DetectionResponseDTO as DetectionResponse,
+    CaptionResponseDTO as CaptionResponse,
     OCRResult,
-    OCRResponse,
+    OCRResponseDTO as OCRResponse,
 )
 
 

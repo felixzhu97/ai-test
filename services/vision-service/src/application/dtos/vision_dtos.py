@@ -52,3 +52,15 @@ class OCRResponseDTO(BaseModel):
     results: List[OCRResult]
     full_text: str
     processing_time_ms: float
+
+
+class AnalyzeImageRequestDTO(BaseModel):
+    """DTO for combined image analysis request."""
+    task: TaskType = TaskType.CAPTION_IMAGE
+
+
+class AnalyzeImageResponseDTO(BaseModel):
+    """DTO for combined image analysis response."""
+    caption: Optional[dict] = None
+    detections: Optional[dict] = None
+    ocr: Optional[dict] = None

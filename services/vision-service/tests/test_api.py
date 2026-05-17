@@ -6,12 +6,13 @@ from fastapi.testclient import TestClient
 from PIL import Image
 import io
 
-from src.schemas.vision import (
-    DetectionResponse,
+from src.application.dtos.vision_dtos import (
+    TaskType,
     DetectionResult,
-    CaptionResponse,
-    OCRResponse,
+    DetectionResponseDTO as DetectionResponse,
+    CaptionResponseDTO as CaptionResponse,
     OCRResult,
+    OCRResponseDTO as OCRResponse,
 )
 
 
@@ -59,11 +60,19 @@ def mock_ocr():
 @pytest.fixture
 def client_with_mocks(mock_yolo, mock_blip, mock_ocr):
     """Create test client with mocked model dependencies."""
-    with patch("src.core.dependencies.ModelContainer.get_yolo", return_value=mock_yolo):
-        with patch("src.core.dependencies.ModelContainer.get_blip", return_value=mock_blip):
-            with patch("src.core.dependencies.ModelContainer.get_ocr", return_value=mock_ocr):
-                from src.main import app
-                yield TestClient(app)
+    from src.main import app
+    from src.core.dependencies import get_yolo, get_blip, get_easyocr
+
+    # Use FastAPI's dependency override mechanism
+    app.dependency_overrides[get_yolo] = lambda: mock_yolo
+    app.dependency_overrides[get_blip] = lambda: mock_blip
+    app.dependency_overrides[get_easyocr] = lambda: mock_ocr
+
+    client = TestClient(app)
+    yield client
+
+    # Clean up overrides
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture

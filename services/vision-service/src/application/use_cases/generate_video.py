@@ -3,7 +3,7 @@
 from typing import Optional
 from ...domain.entities.video_task import VideoTask, VideoTaskStatus
 from ...domain.value_objects.video_config import VideoConfig, AspectRatio, VideoQuality
-from ...domain.services.video_generation_service import VideoGenerationService
+from ...domain.services.video_generation_service import IVideoGenerationService
 
 
 class GenerateVideoInput:
@@ -38,9 +38,13 @@ class GenerateVideoOutput:
 
 
 class GenerateVideoUseCase:
-    """Application use case for video generation."""
+    """Application use case for video generation.
 
-    def __init__(self, service: VideoGenerationService):
+    This use case orchestrates video generation by delegating to
+    the video generation service (infrastructure layer).
+    """
+
+    def __init__(self, service: IVideoGenerationService):
         self._service = service
 
     async def execute(self, input_data: GenerateVideoInput) -> GenerateVideoOutput:

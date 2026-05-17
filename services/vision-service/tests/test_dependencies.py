@@ -2,28 +2,27 @@
 
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
+from src.core import dependencies
 from src.core.dependencies import (
     ModelContainer,
     get_video_provider,
+    _reset_instances,
+    get_yolo,
+    get_blip,
+    get_easyocr,
 )
 
 
 class TestModelContainer:
-    """Tests for ModelContainer."""
+    """Tests for ModelContainer (backward compatibility)."""
 
     def setup_method(self):
         """Reset container state before each test."""
-        ModelContainer._yolo = None
-        ModelContainer._blip = None
-        ModelContainer._ocr = None
-        ModelContainer._generator = None
+        _reset_instances()
 
     def teardown_method(self):
         """Reset container state after each test."""
-        ModelContainer._yolo = None
-        ModelContainer._blip = None
-        ModelContainer._ocr = None
-        ModelContainer._generator = None
+        _reset_instances()
 
     def test_get_yolo_lazy_initialization(self):
         """Should initialize YOLO on first access."""
@@ -39,7 +38,7 @@ class TestModelContainer:
     def test_get_yolo_cached(self):
         """Should return cached instance on subsequent calls."""
         mock_instance = MagicMock()
-        ModelContainer._yolo = mock_instance
+        dependencies._yolo_instance = mock_instance
 
         with patch("src.models.yolo_detector.YOLODetector") as mock_class:
             result = ModelContainer.get_yolo()
@@ -61,7 +60,7 @@ class TestModelContainer:
     def test_get_blip_cached(self):
         """Should return cached instance on subsequent calls."""
         mock_instance = MagicMock()
-        ModelContainer._blip = mock_instance
+        dependencies._blip_instance = mock_instance
 
         with patch("src.models.blip_captioner.BLIPCaptioner") as mock_class:
             result = ModelContainer.get_blip()
@@ -69,46 +68,139 @@ class TestModelContainer:
             assert result == mock_instance
             mock_class.assert_not_called()
 
-    def test_get_ocr_lazy_initialization(self):
-        """Should initialize OCR on first access."""
-        with patch("src.models.paddle_ocr.PaddleOCRProcessor") as mock_class:
+    def test_get_easyocr_lazy_initialization(self):
+        """Should initialize EasyOCR on first access."""
+        with patch("src.models.easy_ocr.EasyOCRProcessor") as mock_class:
             mock_instance = MagicMock()
             mock_class.return_value = mock_instance
 
-            result = ModelContainer.get_ocr()
+            result = ModelContainer.get_easyocr()
 
             assert result == mock_instance
             mock_class.assert_called_once()
 
-    def test_get_ocr_cached(self):
+    def test_get_easyocr_cached(self):
         """Should return cached instance on subsequent calls."""
         mock_instance = MagicMock()
-        ModelContainer._ocr = mock_instance
+        dependencies._easyocr_instance = mock_instance
 
-        with patch("src.models.paddle_ocr.PaddleOCRProcessor") as mock_class:
-            result = ModelContainer.get_ocr()
+        with patch("src.models.easy_ocr.EasyOCRProcessor") as mock_class:
+            result = ModelContainer.get_easyocr()
 
             assert result == mock_instance
             mock_class.assert_not_called()
 
     def test_reset_clears_all_instances(self):
         """Should clear all cached instances."""
-        ModelContainer._yolo = MagicMock()
-        ModelContainer._blip = MagicMock()
-        ModelContainer._ocr = MagicMock()
-        ModelContainer._generator = MagicMock()
+        dependencies._yolo_instance = MagicMock()
+        dependencies._blip_instance = MagicMock()
+        dependencies._easyocr_instance = MagicMock()
+        dependencies._generator_instance = MagicMock()
 
         ModelContainer.reset()
 
-        assert ModelContainer._yolo is None
-        assert ModelContainer._blip is None
-        assert ModelContainer._ocr is None
-        assert ModelContainer._generator is None
+        assert dependencies._yolo_instance is None
+        assert dependencies._blip_instance is None
+        assert dependencies._easyocr_instance is None
+        assert dependencies._generator_instance is None
 
     def test_reset_when_empty(self):
         """Should handle reset when all instances are None."""
+        _reset_instances()
         ModelContainer.reset()
-        assert ModelContainer._yolo is None
+        assert dependencies._yolo_instance is None
+
+
+class TestDependencyFunctions:
+    """Tests for direct dependency functions."""
+
+    def setup_method(self):
+        """Reset container state before each test."""
+        _reset_instances()
+
+    def teardown_method(self):
+        """Reset container state after each test."""
+        _reset_instances()
+
+    def test_get_yolo_lazy_initialization(self):
+        """Should initialize YOLO on first access."""
+        with patch("src.models.yolo_detector.YOLODetector") as mock_class:
+            mock_instance = MagicMock()
+            mock_class.return_value = mock_instance
+
+            result = get_yolo()
+
+            assert result == mock_instance
+            mock_class.assert_called_once()
+
+    def test_get_yolo_cached(self):
+        """Should return cached instance on subsequent calls."""
+        mock_instance = MagicMock()
+        dependencies._yolo_instance = mock_instance
+
+        with patch("src.models.yolo_detector.YOLODetector") as mock_class:
+            result = get_yolo()
+
+            assert result == mock_instance
+            mock_class.assert_not_called()
+
+    def test_get_blip_lazy_initialization(self):
+        """Should initialize BLIP on first access."""
+        with patch("src.models.blip_captioner.BLIPCaptioner") as mock_class:
+            mock_instance = MagicMock()
+            mock_class.return_value = mock_instance
+
+            result = get_blip()
+
+            assert result == mock_instance
+            mock_class.assert_called_once()
+
+    def test_get_blip_cached(self):
+        """Should return cached instance on subsequent calls."""
+        mock_instance = MagicMock()
+        dependencies._blip_instance = mock_instance
+
+        with patch("src.models.blip_captioner.BLIPCaptioner") as mock_class:
+            result = get_blip()
+
+            assert result == mock_instance
+            mock_class.assert_not_called()
+
+    def test_get_easyocr_lazy_initialization(self):
+        """Should initialize EasyOCR on first access."""
+        with patch("src.models.easy_ocr.EasyOCRProcessor") as mock_class:
+            mock_instance = MagicMock()
+            mock_class.return_value = mock_instance
+
+            result = get_easyocr()
+
+            assert result == mock_instance
+            mock_class.assert_called_once()
+
+    def test_get_easyocr_cached(self):
+        """Should return cached instance on subsequent calls."""
+        mock_instance = MagicMock()
+        dependencies._easyocr_instance = mock_instance
+
+        with patch("src.models.easy_ocr.EasyOCRProcessor") as mock_class:
+            result = get_easyocr()
+
+            assert result == mock_instance
+            mock_class.assert_not_called()
+
+    def test_reset_clears_all_instances(self):
+        """Should clear all cached instances via _reset_instances."""
+        dependencies._yolo_instance = MagicMock()
+        dependencies._blip_instance = MagicMock()
+        dependencies._easyocr_instance = MagicMock()
+        dependencies._generator_instance = MagicMock()
+
+        _reset_instances()
+
+        assert dependencies._yolo_instance is None
+        assert dependencies._blip_instance is None
+        assert dependencies._easyocr_instance is None
+        assert dependencies._generator_instance is None
 
 
 class TestVideoProviderDependency:

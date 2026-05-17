@@ -2,7 +2,7 @@
 
 from typing import Optional
 from ...domain.entities.video_task import VideoTask
-from ...domain.services.video_generation_service import VideoGenerationService
+from ...domain.services.video_generation_service import IVideoGenerationService
 
 
 class CheckVideoStatusInput:
@@ -25,9 +25,13 @@ class CheckVideoStatusOutput:
 
 
 class CheckVideoStatusUseCase:
-    """Application use case for checking video generation status."""
+    """Application use case for checking video generation status.
 
-    def __init__(self, service: VideoGenerationService):
+    This use case orchestrates status checks by delegating to
+    the video generation service (infrastructure layer).
+    """
+
+    def __init__(self, service: IVideoGenerationService):
         self._service = service
 
     async def execute(self, input_data: CheckVideoStatusInput) -> CheckVideoStatusOutput:

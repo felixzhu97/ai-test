@@ -6,9 +6,10 @@ from .dependencies import (
     ModelContainer,
     get_yolo,
     get_blip,
-    get_ocr,
+    get_easyocr,
     get_generator,
     get_video_provider,
+    _reset_instances,
 )
 
 __all__ = [
@@ -20,7 +21,8 @@ __all__ = [
     "ModelContainer",
     "get_yolo",
     "get_blip",
-    "get_ocr",
+    "get_easyocr",
     "get_generator",
     "get_video_provider",
+    "_reset_instances",
 ]
