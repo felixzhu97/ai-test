@@ -10,11 +10,13 @@ Person(ml_engineer, "ML 工程师", "构建和部署机器学习模型")
 Person(devops_engineer, "运维工程师", "管理系统基础设施和监控")
 Person(data_scientist, "数据科学家", "进行数据分析和特征工程")
 
-' 外部系统
+' AI-Test Platform 系统边界
 System_Boundary(ai_platform, "AI-Test Platform") {
     System(web_app, "Web 应用", "React 单页应用，提供用户交互界面")
-    System(ai_agents_service, "AI Agents 服务", "多智能体协调系统，处理复杂 AI 任务")
-    System(vision_service, "Vision 服务", "提供 YOLO、BLIP、PaddleOCR 等视觉 AI 能力")
+    System(ai_agents_service, "AI Agents 服务", "多智能体协调系统，处理复杂 AI 任务 (Port 8003)")
+    System(vision_service, "Vision 服务", "视频和图像生成服务 (Port 8003)")
+    System(tts_service, "TTS 服务", "文本转语音合成服务 (Port 8004)")
+    System(text_service, "Text 服务", "文本处理和 LLM 网关服务 (Port 8000)")
     System(rag_service, "RAG 服务", "文档检索和问答系统")
     System(vector_store, "Vector Store", "Qdrant 向量数据库，存储文档嵌入")
 }
@@ -22,14 +24,14 @@ System_Boundary(ai_platform, "AI-Test Platform") {
 ' 外部服务
 System_Ext(openai_api, "OpenAI API", "GPT-4 等大语言模型服务")
 System_Ext(claude_api, "Claude API", "Anthropic Claude 语言模型服务")
-System_Ext(ollama, "Ollama", "本地 LLM 推理服务")
+System_Ext(ollama, "Ollama", "本地 LLM 推理服务 (qwen3)")
 System_Ext(kubernetes, "Kubernetes", "容器编排和集群管理")
 System_Ext(prometheus, "Prometheus", "指标监控和告警")
 System_Ext(grafana, "Grafana", "可视化监控仪表板")
 System_Ext(mlflow, "MLflow", "ML 实验跟踪和模型管理")
 System_Ext(feast, "Feast", "特征存储服务")
 
-' 关系
+' 用户关系
 Rel(ml_engineer, web_app, "配置模型", "HTTPS")
 Rel(ml_engineer, ai_agents_service, "编排智能体", "HTTPS")
 Rel(devops_engineer, web_app, "监控系统", "HTTPS")
@@ -38,16 +40,21 @@ Rel(devops_engineer, prometheus, "查看指标", "HTTP")
 Rel(data_scientist, web_app, "查询特征", "HTTPS")
 Rel(data_scientist, feast, "管理特征", "gRPC")
 
+' 内部系统关系
 Rel(web_app, ai_agents_service, "发送请求", "HTTP/SSE")
 Rel(ai_agents_service, vision_service, "调用视觉 AI", "HTTP")
+Rel(ai_agents_service, tts_service, "语音合成", "HTTP")
+Rel(ai_agents_service, text_service, "文本处理/LLM", "HTTP")
 Rel(ai_agents_service, rag_service, "RAG 查询", "HTTP")
 Rel(ai_agents_service, vector_store, "向量检索", "gRPC")
 Rel(rag_service, vector_store, "存储/检索", "gRPC")
 
+' LLM 集成
 Rel(ai_agents_service, openai_api, "LLM 调用")
 Rel(ai_agents_service, claude_api, "LLM 调用")
 Rel(ai_agents_service, ollama, "本地 LLM")
 
+' 运维集成
 Rel(ai_agents_service, mlflow, "实验跟踪")
 Rel(ai_agents_service, feast, "特征存取")
 Rel(ai_agents_service, prometheus, "上报指标")

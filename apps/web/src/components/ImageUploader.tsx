@@ -25,8 +25,8 @@ interface Result {
 const API_BASE = 'http://localhost:8000';
 
 const fadeIn = keyframes`
-  from { opacity: 0; transform: translateX(8px); }
-  to { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 `;
 
 const spin = keyframes`
@@ -39,6 +39,8 @@ const Container = styled.div`
   flex-direction: column;
   gap: ${spacing.md};
 `;
+
+const TabSection = styled.div``;
 
 const TabHeader = styled.div`
   display: flex;
@@ -424,64 +426,65 @@ export function ImageUploader() {
           onChange={setTask}
         />
       </TabHeader>
-
-      <MainArea>
-        <Panel>
-          <PanelTitle>{t.imageUploader.imageLabel}</PanelTitle>
-          <ImageArea
-            onClick={() => !image && fileInputRef.current?.click()}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-          >
-            <HiddenInput
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
-            />
-            {image ? (
-              <>
-                <PreviewImage
-                  src={image}
-                  alt="Preview"
-                  onClick={() => setZoomedImage(image)}
-                />
-                <ZoomHint>Click to enlarge</ZoomHint>
-                <ClearButton onClick={handleClear}>×</ClearButton>
-                {loading && (
-                  <LoadingOverlay>
-                    <Spinner />
-                  </LoadingOverlay>
-                )}
-              </>
-            ) : (
-              <DropZone>
-                <DropIcon>+</DropIcon>
-                <DropText>{t.imageUploader.dropText}</DropText>
-                <DropHint>{t.imageUploader.dropHint}</DropHint>
-              </DropZone>
-            )}
-          </ImageArea>
-        </Panel>
-
-        <Panel>
-          <PanelTitle>{t.imageUploader.resultLabel}</PanelTitle>
-          <ResultContent>
-            {renderResult()}
-          </ResultContent>
-          {error && <ErrorMessage>{error}</ErrorMessage>}
-          <ActionArea>
-            <Button
-              fullWidth
-              size="lg"
-              onClick={handleSubmit}
-              disabled={!file}
+      <TabSection key={task} css={{ animation: `${fadeIn} 0.3s ease` }}>
+        <MainArea>
+          <Panel>
+            <PanelTitle>{t.imageUploader.imageLabel}</PanelTitle>
+            <ImageArea
+              onClick={() => !image && fileInputRef.current?.click()}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
             >
-              {loading ? t.imageUploader.analyzing : t.imageUploader.startAnalyze}
-            </Button>
-          </ActionArea>
-        </Panel>
-      </MainArea>
+              <HiddenInput
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+              />
+              {image ? (
+                <>
+                  <PreviewImage
+                    src={image}
+                    alt="Preview"
+                    onClick={() => setZoomedImage(image)}
+                  />
+                  <ZoomHint>Click to enlarge</ZoomHint>
+                  <ClearButton onClick={handleClear}>×</ClearButton>
+                  {loading && (
+                    <LoadingOverlay>
+                      <Spinner />
+                    </LoadingOverlay>
+                  )}
+                </>
+              ) : (
+                <DropZone>
+                  <DropIcon>+</DropIcon>
+                  <DropText>{t.imageUploader.dropText}</DropText>
+                  <DropHint>{t.imageUploader.dropHint}</DropHint>
+                </DropZone>
+              )}
+            </ImageArea>
+          </Panel>
+
+          <Panel>
+            <PanelTitle>{t.imageUploader.resultLabel}</PanelTitle>
+            <ResultContent>
+              {renderResult()}
+            </ResultContent>
+            {error && <ErrorMessage>{error}</ErrorMessage>}
+            <ActionArea>
+              <Button
+                fullWidth
+                size="lg"
+                onClick={handleSubmit}
+                disabled={!file}
+              >
+                {loading ? t.imageUploader.analyzing : t.imageUploader.startAnalyze}
+              </Button>
+            </ActionArea>
+          </Panel>
+        </MainArea>
+      </TabSection>
 
       {zoomedImage && (
         <ImageZoomModal

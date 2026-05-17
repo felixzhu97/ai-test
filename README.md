@@ -90,6 +90,12 @@
 #### RAG 服务组件
 ![C3 RAG](docs/c4/png/C4-Component-RAG-Service.png)
 
+#### Vision Service 组件
+![C3 Vision](docs/c4/png/C4-Component-Vision-Service.png)
+
+#### Media Services 组件
+![C3 Media](docs/c4/png/C4-Component-Media-Services.png)
+
 ## 技术栈
 
 ### 前端

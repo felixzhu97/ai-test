@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import styled from '@emotion/styled';
+import { keyframes } from '@emotion/react';
 import { SegmentedControl } from '../SegmentedControl';
 import { AgentChat } from '../agents/AgentChat';
 import { StatusBadge } from '../agents/StatusBadge';
@@ -20,6 +21,13 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${spacing.md};
+`;
+
+const TabSection = styled.div``;
+
+const fadeIn = keyframes`
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 `;
 
 const TabHeader = styled.div`
@@ -112,17 +120,19 @@ export function AIInfraPanel() {
           onChange={setActiveSubTab}
         />
       </TabHeader>
-      <AgentPanel
-        title={activeConfig.title}
-        description={activeConfig.description}
-        headerRight={<StatusBadge status={AGENT_STATUS.status} />}
-      >
-        <AgentChat
-          agentInfo={{ name: activeConfig.title, description: activeConfig.description }}
-          apiEndpoint={activeConfig.apiEndpoint}
-          quickPrompts={activeConfig.quickPrompts}
-        />
-      </AgentPanel>
+      <TabSection key={activeSubTab} css={{ animation: `${fadeIn} 0.3s ease` }}>
+        <AgentPanel
+          title={activeConfig.title}
+          description={activeConfig.description}
+          headerRight={<StatusBadge status={AGENT_STATUS.status} />}
+        >
+          <AgentChat
+            agentInfo={{ name: activeConfig.title, description: activeConfig.description }}
+            apiEndpoint={activeConfig.apiEndpoint}
+            quickPrompts={activeConfig.quickPrompts}
+          />
+        </AgentPanel>
+      </TabSection>
     </Container>
   );
 }

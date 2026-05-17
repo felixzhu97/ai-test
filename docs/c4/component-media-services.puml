@@ -1,0 +1,71 @@
+@startuml C4-Component-Media-Services
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title 组件图 (C3) - 媒体服务架构
+
+Container_Boundary(media_services, "Media Services") {
+
+    ' === TTS Service ===
+    System_Boundary(tts_service, "TTS Service (Port 8004)") {
+        Component(tts_router, "TTS Router", "FastAPI", "TTS 路由定义")
+        Component(tts_provider_factory, "Provider Factory", "Python", "Provider 工厂")
+        Component(azure_tts, "Azure TTS", "Python", "Azure 语音服务")
+        Component(google_tts, "Google TTS", "Python", "Google Cloud TTS")
+        Component(elevenlabs_tts, "ElevenLabs TTS", "Python", "ElevenLabs 高质量语音")
+        Component(edge_tts, "Edge TTS", "Python", "Microsoft Edge TTS")
+        Component(coqui_tts, "Coqui TTS", "Python", "Coqui 开源 TTS")
+        Component(base_tts, "Base TTS Provider", "Python", "Provider 基类")
+        Component(audio_utils, "Audio Utils", "Python", "音频处理工具")
+        Component(tts_config, "TTS Config", "Pydantic Settings", "TTS 配置管理")
+    }
+
+    ' === Text Service ===
+    System_Boundary(text_service, "Text Service (Port 8000)") {
+        Component(text_router, "API Router", "FastAPI", "API 路由定义")
+        Component(text_schemas, "Schemas", "Pydantic", "请求/响应模型")
+        Component(llm_gateway, "LLM Gateway", "Python", "多 LLM 提供者网关")
+        Component(text_config, "Config", "Pydantic Settings", "配置管理")
+    }
+
+    ' === Media Gen Service ===
+    System_Boundary(media_gen, "Media Gen Service") {
+        Component(media_app, "Media App", "FastAPI", "媒体生成应用")
+        Component(image_generator, "Image Generator", "Python", "图像生成")
+        Component(video_generator, "Video Generator", "Python", "视频生成")
+    }
+}
+
+' === TTS Service 内部关系 ===
+Rel(tts_router, tts_provider_factory, "委托")
+Rel(tts_provider_factory, azure_tts, "创建")
+Rel(tts_provider_factory, google_tts, "创建")
+Rel(tts_provider_factory, elevenlabs_tts, "创建")
+Rel(tts_provider_factory, edge_tts, "创建")
+Rel(tts_provider_factory, coqui_tts, "创建")
+Rel(tts_provider_factory, base_tts, "继承")
+Rel(tts_router, audio_utils, "使用")
+Rel(tts_router, tts_config, "使用配置")
+
+' === Text Service 内部关系 ===
+Rel(text_router, llm_gateway, "调用")
+Rel(llm_gateway, text_config, "使用配置")
+
+' === Media Gen Service 内部关系 ===
+Rel(media_app, image_generator, "图像生成")
+Rel(media_app, video_generator, "视频生成")
+
+' === 服务间关系 ===
+Rel(tts_service, text_service, "调用")
+Rel(text_service, media_gen, "调用")
+
+' === AI Agents 与服务关系 ===
+System_Ext(ai_agents_tts, "AI Agents - TTS Agent", "TTS Tools")
+System_Ext(ai_agents_video, "AI Agents - Video Agent", "Video Tools")
+
+Rel(ai_agents_tts, tts_service, "调用 TTS API")
+Rel(ai_agents_video, media_gen, "调用媒体生成")
+
+SHOW_LEGEND()
+@enduml

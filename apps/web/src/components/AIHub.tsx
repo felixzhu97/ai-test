@@ -46,7 +46,6 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${spacing.md};
-  animation: ${fadeIn} 0.3s ease;
 `;
 
 const TabHeader = styled.div`
@@ -1127,7 +1126,7 @@ export function AIHub() {
         />
       </TabHeader>
 
-      <TabSection key={activeTab}>
+      <TabSection key={activeTab} css={{ animation: `${fadeIn} 0.3s ease` }}>
         {/* Chat Tab */}
         {activeTab === 'chat' && (
           <PanelContainer>

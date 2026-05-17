@@ -1,0 +1,84 @@
+@startuml C4-Component-Vision-Service
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title 组件图 (C3) - Vision Service 架构
+
+Container_Boundary(vision_service, "Vision Service (Port 8003)") {
+
+    ' === API 层 ===
+    System_Boundary(api_layer, "API Layer") {
+        Component(api_router, "API Router", "FastAPI", "路由定义")
+        Component(video_api, "Video API", "FastAPI", "视频生成端点")
+        Component(image_gen_api, "Image Gen API", "FastAPI", "图像生成端点")
+    }
+
+    ' === 核心服务 ===
+    System_Boundary(core_services, "Core Services") {
+        Component(video_service, "Video Service", "Python", "视频生成核心逻辑")
+        Component(image_gen_service, "Image Gen Service", "Python", "图像生成核心逻辑")
+    }
+
+    ' === Provider 层 ===
+    System_Boundary(providers, "Providers") {
+        Component(provider_factory, "Provider Factory", "Python", "Provider 工厂类")
+        Component(kling_provider, "Kling Provider", "Python", "快手可灵视频生成")
+        Component(runway_provider, "Runway Provider", "Python", "Runway ML 视频生成")
+        Component(pika_provider, "Pika Provider", "Python", "Pika Labs 视频生成")
+        Component(sora_provider, "Sora Provider", "Python", "OpenAI Sora 视频生成")
+        Component(replicate_provider, "Replicate Provider", "Python", "Replicate 通用生成")
+        Component(mock_provider, "Mock Provider", "Python", "测试用 Mock")
+    }
+
+    ' === 配置层 ===
+    System_Boundary(config, "Configuration") {
+        Component(video_config, "Video Config", "Pydantic", "视频生成配置")
+        Component(image_gen_config, "Image Gen Config", "Pydantic", "图像生成配置")
+        Component(base_config, "Base Config", "Pydantic Settings", "基础配置管理")
+    }
+
+    ' === 客户端 ===
+    System_Boundary(clients, "Clients") {
+        Component(image_gen_client, "Image Gen Client", "httpx", "图像生成 API 客户端")
+    }
+
+    ' === 核心模块 ===
+    System_Boundary(core, "Core") {
+        Component(schemas, "Schemas", "Pydantic", "请求/响应模型")
+    }
+}
+
+' === API 路由关系 ===
+Rel(api_router, video_api, "路由")
+Rel(api_router, image_gen_api, "路由")
+Rel(video_api, video_service, "调用")
+Rel(image_gen_api, image_gen_service, "调用")
+
+' === 服务与 Provider 关系 ===
+Rel(video_service, provider_factory, "创建 Provider")
+Rel(image_gen_service, provider_factory, "创建 Provider")
+Rel(provider_factory, kling_provider, "创建")
+Rel(provider_factory, runway_provider, "创建")
+Rel(provider_factory, pika_provider, "创建")
+Rel(provider_factory, sora_provider, "创建")
+Rel(provider_factory, replicate_provider, "创建")
+Rel(provider_factory, mock_provider, "创建")
+
+' === 配置关系 ===
+Rel(video_config, base_config, "继承")
+Rel(image_gen_config, base_config, "继承")
+Rel(kling_provider, video_config, "使用")
+Rel(runway_provider, video_config, "使用")
+Rel(pika_provider, video_config, "使用")
+Rel(sora_provider, video_config, "使用")
+
+' === 客户端关系 ===
+Rel(image_gen_client, image_gen_config, "使用配置")
+
+' === Schema 关系 ===
+Rel(schemas, video_api, "定义模型")
+Rel(schemas, image_gen_api, "定义模型")
+
+SHOW_LEGEND()
+@enduml
