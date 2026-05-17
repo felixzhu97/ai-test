@@ -31,12 +31,11 @@ venv/
 *.log
 logs/
 
-# Data
-volumes/
-milvus/
-models/
+# ML model weights (at any level)
 *.pt
 *.onnx
+*.pth
+*.h5
 
 # Cache
 .cache/
