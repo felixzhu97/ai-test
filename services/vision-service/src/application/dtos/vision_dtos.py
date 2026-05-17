@@ -1,9 +1,12 @@
-from pydantic import BaseModel, Field
-from typing import Optional
+"""Vision-related DTOs for API requests and responses."""
+
+from typing import Optional, List
 from enum import Enum
+from pydantic import BaseModel, Field
 
 
 class TaskType(str, Enum):
+    """Vision task types."""
     DETECT_OBJECTS = "detect_objects"
     CAPTION_IMAGE = "caption_image"
     EXTRACT_TEXT = "extract_text"
@@ -11,21 +14,24 @@ class TaskType(str, Enum):
 
 
 class DetectionResult(BaseModel):
+    """Detection result for a single object."""
     class_name: str
     confidence: float = Field(ge=0.0, le=1.0)
     bbox: tuple[int, int, int, int]
 
 
-class DetectionResponse(BaseModel):
+class DetectionResponseDTO(BaseModel):
+    """DTO for object detection response."""
     task: str = "detect_objects"
     model: str
-    detections: list[DetectionResult]
+    detections: List[DetectionResult]
     image_width: int
     image_height: int
     processing_time_ms: float
 
 
-class CaptionResponse(BaseModel):
+class CaptionResponseDTO(BaseModel):
+    """DTO for image captioning response."""
     task: str = "caption_image"
     model: str
     caption: str
@@ -33,14 +39,16 @@ class CaptionResponse(BaseModel):
 
 
 class OCRResult(BaseModel):
+    """OCR result for a single text block."""
     text: str
     confidence: float
-    bbox: Optional[list[list[float]]] = None
+    bbox: Optional[List[List[float]]] = None
 
 
-class OCRResponse(BaseModel):
+class OCRResponseDTO(BaseModel):
+    """DTO for OCR response."""
     task: str = "extract_text"
     model: str
-    results: list[OCRResult]
+    results: List[OCRResult]
     full_text: str
     processing_time_ms: float

@@ -1,17 +1,33 @@
+"""Replicate Video Provider implementation.
+
+This provider integrates with Replicate API for text-to-video generation.
+"""
+
 from typing import Optional
 from .base import BaseVideoProvider
-from ..core.video_config import get_settings
 from loguru import logger
 import httpx
 
 
 class ReplicateVideoProvider(BaseVideoProvider):
-    def __init__(self):
-        self.settings = get_settings()
-        self.api_token = self.settings.REPLICATE_API_TOKEN
-        self.base_url = "https://api.replicate.com/v1"
+    """Replicate text-to-video provider.
+    
+    Replicate provides access to various open-source video generation models
+    through a simple API.
+    """
+    
+    def __init__(self, api_token: str = ""):
+        """Initialize Replicate provider.
+        
+        Args:
+            api_token: Replicate API token.
+        """
+        super().__init__(
+            api_token=api_token,
+            base_url="https://api.replicate.com/v1"
+        )
         self._headers = {
-            "Authorization": f"Bearer {self.api_token}",
+            "Authorization": f"Bearer {api_token}",
             "Content-Type": "application/json",
         }
 

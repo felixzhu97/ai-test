@@ -274,21 +274,62 @@ curl -X POST http://localhost:8003/api/agents/vector/invoke \
 
 Base URL: `http://localhost:8000`
 
+Vision Service 采用 DDD（领域驱动设计）架构，支持图像处理、图像生成和视频生成。
+
+### Architecture
+
+```
+src/
+├── api/                    # API Layer (FastAPI Routes)
+│   ├── vision.py          # 图像分析端点
+│   ├── image_gen.py       # 图像生成端点
+│   └── video.py           # 视频生成端点
+├── application/           # Application Layer (Use Cases)
+│   ├── use_cases/
+│   │   ├── generate_video.py
+│   │   └── check_video_status.py
+│   └── dtos/              # Data Transfer Objects
+│       ├── vision_dtos.py
+│       ├── image_dtos.py
+│       └── video_dtos.py
+├── domain/                 # Domain Layer (Entities & Business Logic)
+│   ├── entities/
+│   │   ├── image.py
+│   │   └── video_task.py  # VideoTask, VideoTaskStatus
+│   ├── value_objects/
+│   │   ├── dimensions.py
+│   │   └── video_config.py
+│   └── services/
+│       ├── image_generation_service.py
+│       └── video_generation_service.py
+└── providers/             # Infrastructure Layer (External APIs)
+    ├── base.py
+    ├── interfaces.py
+    ├── mock.py
+    ├── kling.py
+    ├── pika.py
+    ├── replicate.py
+    ├── runway.py
+    └── sora.py
+```
+
 ### Endpoints Overview
 
 
-| Method | Endpoint              | Description                  |
-| ------ | --------------------- | ---------------------------- |
-| `GET`  | `/health`             | Health check                  |
-| `GET`  | `/`                   | Service info                  |
-| `POST` | `/vision/detect`      | Object detection (YOLO)       |
-| `POST` | `/vision/caption`     | Image captioning (BLIP)       |
-| `POST` | `/vision/ocr`         | Text extraction (PaddleOCR)   |
-| `POST` | `/vision/analyze`     | Combined analysis             |
-| `POST` | `/image-gen/generate` | Text-to-image (Stable Diffusion) |
-| `POST` | `/image-gen/variation` | Image variation             |
-| `POST` | `/image-gen/upscale`  | Image upscaling               |
-| `POST` | `/video/generate`     | Text/image to video          |
+| Method | Endpoint                   | Description                      |
+| ------ | -------------------------- | -------------------------------- |
+| `GET`  | `/health`                  | Health check                     |
+| `GET`  | `/`                        | Service info                     |
+| `POST` | `/vision/detect`           | Object detection (YOLO)          |
+| `POST` | `/vision/caption`          | Image captioning (BLIP)          |
+| `POST` | `/vision/ocr`              | Text extraction (PaddleOCR)      |
+| `POST` | `/vision/analyze`          | Combined analysis                |
+| `POST` | `/image-gen/generate`      | Text-to-image (Stable Diffusion) |
+| `POST` | `/image-gen/variation`     | Image variation                  |
+| `POST` | `/image-gen/upscale`       | Image upscaling                  |
+| `POST` | `/video/generate`          | Text/image to video              |
+| `POST` | `/video/generate/advanced` | Advanced video generation        |
+| `GET`  | `/video/status/{task_id}`  | Check video task status          |
 
 
 ---
@@ -554,6 +595,253 @@ curl -X POST "http://localhost:8000/vision/analyze?task=analyze_image" \
 
 ---
 
+### Video Generation
+
+Vision Service 支持基于 DDD 架构的视频生成服务，支持多种提供商（Mock、Kling、Replicate、Pika、Runway、Sora）。
+
+#### Video Generation Flow
+
+```
+┌──────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  POST        │     │  Application     │     │  Domain         │
+│  /video/     │ ──► │  UseCase         │ ──► │  VideoTask      │
+│  generate    │     │  GenerateVideo   │     │  Entity         │
+└──────────────┘     └──────────────────┘     └─────────────────┘
+                                                      │
+                     ┌──────────────────┐            │
+                     │  GET             │     ┌───────▼───────┐
+                     │  /video/status/  │ ◄── │  Provider     │
+                     │  {task_id}       │     │  (Infrastructure)
+                     └──────────────────┘     └───────────────┘
+```
+
+#### `POST /video/generate`
+
+提交视频生成任务。
+
+**Request:**
+
+```json
+{
+  "prompt": "A serene lake at sunset with ducks swimming",
+  "negative_prompt": "blurry, low quality",
+  "duration": 5,
+  "aspect_ratio": "16:9",
+  "fps": 24,
+  "quality": "high",
+  "model": "kling-v1-5",
+  "callback_url": "https://example.com/webhook"
+}
+```
+
+**Request Fields:**
+
+
+| Field             | Type   | Required | Default    | Description                |
+| ----------------- | ------ | -------- | ---------- | -------------------------- |
+| `prompt`          | string | Yes      | -          | 视频描述文本                     |
+| `negative_prompt` | string | No       | null       | 避免的元素                      |
+| `duration`        | int    | No       | 5          | 视频时长（5-10秒）                |
+| `aspect_ratio`    | enum   | No       | 16:9       | 宽高比（16:9, 9:16, 1:1, 4:3）  |
+| `fps`             | int    | No       | 24         | 帧率（24-60）                  |
+| `quality`         | enum   | No       | high       | 质量（standard, high）         |
+| `model`           | enum   | No       | kling-v1-5 | 模型（kling-v1-0, kling-v1-5） |
+| `callback_url`    | string | No       | null       | 异步通知 Webhook               |
+
+
+**Response:**
+
+```json
+{
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "pending",
+  "message": "Video generation started",
+  "created_at": "2026-05-17T09:45:00"
+}
+```
+
+**Response Fields:**
+
+
+| Field        | Type   | Description    |
+| ------------ | ------ | -------------- |
+| `task_id`    | string | 唯一任务标识符        |
+| `status`     | string | 任务状态（pending）  |
+| `message`    | string | 状态消息           |
+| `created_at` | string | 创建时间（ISO 8601） |
+
+
+---
+
+#### `POST /video/generate/advanced`
+
+高级视频生成，支持更多参数。
+
+**Request:**
+
+```json
+{
+  "prompt": "A robot dancing in a futuristic city",
+  "style": "cinematic",
+  "cfg_scale": 7.5,
+  "motion_intensity": 1.2,
+  "seed": 42,
+  "duration": 10
+}
+```
+
+**Advanced Request Fields:**
+
+
+| Field              | Type  | Default | Description                                     |
+| ------------------ | ----- | ------- | ----------------------------------------------- |
+| `style`            | enum  | none    | 风格预设（realistic, animation, cinematic, abstract） |
+| `seed`             | int   | null    | 随机种子，用于可复现性                                     |
+| `cfg_scale`        | float | 7.5     | 提示词遵循强度（1-20）                                   |
+| `motion_intensity` | float | 1.0     | 运动强度（0.1-2.0）                                   |
+
+
+---
+
+#### `GET /video/status/{task_id}`
+
+查询视频生成任务状态。
+
+**Path Parameters:**
+
+
+| Parameter | Type   | Description |
+| --------- | ------ | ----------- |
+| `task_id` | string | 任务标识符       |
+
+
+**Response (Pending):**
+
+```json
+{
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "pending",
+  "video_url": null,
+  "thumbnail_url": null,
+  "error": null,
+  "processing_time_seconds": null
+}
+```
+
+**Response (Processing):**
+
+```json
+{
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "processing",
+  "video_url": null,
+  "thumbnail_url": null,
+  "error": null,
+  "processing_time_seconds": null
+}
+```
+
+**Response (Completed):**
+
+```json
+{
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "completed",
+  "video_url": "https://cdn.example.com/videos/abc123.mp4",
+  "thumbnail_url": "https://cdn.example.com/thumbnails/abc123.jpg",
+  "error": null,
+  "processing_time_seconds": 45.5
+}
+```
+
+**Response (Failed):**
+
+```json
+{
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "failed",
+  "video_url": null,
+  "thumbnail_url": null,
+  "error": "API rate limit exceeded",
+  "processing_time_seconds": null
+}
+```
+
+**Task Status Values:**
+
+
+| Status       | Description |
+| ------------ | ----------- |
+| `pending`    | 任务已创建，等待处理  |
+| `processing` | 正在生成视频      |
+| `completed`  | 视频生成完成      |
+| `failed`     | 生成失败        |
+
+
+---
+
+#### Video Generation Examples
+
+**cURL:**
+
+```bash
+# Generate video
+curl -X POST http://localhost:8000/video/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "A cat playing piano in moonlight", "duration": 5}'
+
+# Advanced generation
+curl -X POST http://localhost:8000/video/generate/advanced \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "A sunset over the ocean", "style": "cinematic", "duration": 10}'
+
+# Check status
+curl http://localhost:8000/video/status/{task_id}
+```
+
+**Python:**
+
+```python
+import httpx
+import asyncio
+
+async def generate_video():
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        # Create task
+        response = await client.post(
+            "http://localhost:8000/video/generate",
+            json={
+                "prompt": "A serene mountain landscape with flowing water",
+                "duration": 5,
+                "aspect_ratio": "16:9",
+                "quality": "high"
+            }
+        )
+        task_data = response.json()
+        task_id = task_data["task_id"]
+        print(f"Task created: {task_id}")
+
+        # Poll status
+        for _ in range(30):
+            await asyncio.sleep(2)
+            status_response = await client.get(
+                f"http://localhost:8000/video/status/{task_id}"
+            )
+            status = status_response.json()
+            print(f"Status: {status['status']}")
+
+            if status["status"] in ("completed", "failed"):
+                if status["video_url"]:
+                    print(f"Video URL: {status['video_url']}")
+                else:
+                    print(f"Error: {status['error']}")
+                break
+
+asyncio.run(generate_video())
+```
+
+---
+
 ## Text Service (Port 8006)
 
 Base URL: `http://localhost:8006`
@@ -563,17 +851,18 @@ Text-to-Text LLM service with multi-provider support (OpenAI, Anthropic, Ollama)
 ### Endpoints Overview
 
 
-| Method | Endpoint               | Description              |
-| ------ | --------------------- | ------------------------ |
-| `GET`  | `/api/text/health`     | Health check             |
-| `GET`  | `/api/text/providers`   | List LLM providers       |
-| `GET`  | `/api/text/models`     | List available models     |
-| `POST` | `/api/text/complete`    | Text completion          |
-| `POST` | `/api/text/complete/stream` | Stream completion    |
-| `POST` | `/api/text/chat`       | Chat completion          |
-| `POST` | `/api/text/chat/stream` | Stream chat completion  |
-| `GET`  | `/api/text/session/{session_id}` | Get session history |
-| `DELETE` | `/api/text/session/{session_id}` | Clear session |
+| Method   | Endpoint                         | Description            |
+| -------- | -------------------------------- | ---------------------- |
+| `GET`    | `/api/text/health`               | Health check           |
+| `GET`    | `/api/text/providers`            | List LLM providers     |
+| `GET`    | `/api/text/models`               | List available models  |
+| `POST`   | `/api/text/complete`             | Text completion        |
+| `POST`   | `/api/text/complete/stream`      | Stream completion      |
+| `POST`   | `/api/text/chat`                 | Chat completion        |
+| `POST`   | `/api/text/chat/stream`          | Stream chat completion |
+| `GET`    | `/api/text/session/{session_id}` | Get session history    |
+| `DELETE` | `/api/text/session/{session_id}` | Clear session          |
+
 
 ---
 
@@ -698,13 +987,14 @@ Text-to-Speech service with multiple provider support (Azure, Google, ElevenLabs
 ### Endpoints Overview
 
 
-| Method | Endpoint           | Description              |
-| ------ | ------------------ | ------------------------ |
-| `GET`  | `/tts/health`       | Health check             |
-| `GET`  | `/tts/voices`       | List available voices    |
-| `GET`  | `/tts/providers`     | List TTS providers       |
-| `POST` | `/tts/synthesize`    | Synthesize speech        |
-| `POST` | `/tts/stream`       | Stream speech            |
+| Method | Endpoint          | Description           |
+| ------ | ----------------- | --------------------- |
+| `GET`  | `/tts/health`     | Health check          |
+| `GET`  | `/tts/voices`     | List available voices |
+| `GET`  | `/tts/providers`  | List TTS providers    |
+| `POST` | `/tts/synthesize` | Synthesize speech     |
+| `POST` | `/tts/stream`     | Stream speech         |
+
 
 ---
 
@@ -772,23 +1062,25 @@ Production RAG service with Qdrant vector store for document retrieval and knowl
 
 ### Endpoints Overview
 
-| Method | Endpoint | Description |
-| ------ | -------- | ----------- |
-| `GET` | `/health` | Health check |
-| `GET` | `/` | Service info |
-| `POST` | `/documents/upload` | Upload and ingest a document |
-| `POST` | `/documents/ingest-url` | Ingest document from URL |
-| `GET` | `/documents/` | List all documents |
-| `GET` | `/documents/{doc_id}/stats` | Get document statistics |
-| `DELETE` | `/documents/{doc_id}` | Delete a document |
-| `POST` | `/chat/` | Chat with RAG (non-streaming) |
-| `POST` | `/chat/stream` | Chat with RAG (streaming) |
-| `GET` | `/chat/history/{session_id}` | Get chat history |
-| `DELETE` | `/chat/history/{session_id}` | Clear chat history |
-| `POST` | `/chat/ingest-text` | Ingest raw text directly |
-| `POST` | `/reload` | Reload configuration |
-| `GET` | `/cache/stats` | Get cache statistics |
-| `POST` | `/cache/clear` | Clear all caches |
+
+| Method   | Endpoint                     | Description                   |
+| -------- | ---------------------------- | ----------------------------- |
+| `GET`    | `/health`                    | Health check                  |
+| `GET`    | `/`                          | Service info                  |
+| `POST`   | `/documents/upload`          | Upload and ingest a document  |
+| `POST`   | `/documents/ingest-url`      | Ingest document from URL      |
+| `GET`    | `/documents/`                | List all documents            |
+| `GET`    | `/documents/{doc_id}/stats`  | Get document statistics       |
+| `DELETE` | `/documents/{doc_id}`        | Delete a document             |
+| `POST`   | `/chat/`                     | Chat with RAG (non-streaming) |
+| `POST`   | `/chat/stream`               | Chat with RAG (streaming)     |
+| `GET`    | `/chat/history/{session_id}` | Get chat history              |
+| `DELETE` | `/chat/history/{session_id}` | Clear chat history            |
+| `POST`   | `/chat/ingest-text`          | Ingest raw text directly      |
+| `POST`   | `/reload`                    | Reload configuration          |
+| `GET`    | `/cache/stats`               | Get cache statistics          |
+| `POST`   | `/cache/clear`               | Clear all caches              |
+
 
 ---
 
@@ -811,12 +1103,14 @@ Check service health and connectivity status.
 
 **Response Fields:**
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `status` | string | `"ok"` if healthy, `"degraded"` if Qdrant unavailable |
-| `qdrant_connected` | boolean | Whether Qdrant vector store is connected |
-| `embedding_model` | string | Name of the embedding model |
-| `llm_provider` | string | LLM provider (`ollama`, `openai`, etc.) |
+
+| Field              | Type    | Description                                           |
+| ------------------ | ------- | ----------------------------------------------------- |
+| `status`           | string  | `"ok"` if healthy, `"degraded"` if Qdrant unavailable |
+| `qdrant_connected` | boolean | Whether Qdrant vector store is connected              |
+| `embedding_model`  | string  | Name of the embedding model                           |
+| `llm_provider`     | string  | LLM provider (`ollama`, `openai`, etc.)               |
+
 
 ---
 
@@ -878,11 +1172,13 @@ Upload and ingest a document file (PDF, Markdown, Text).
 
 **Supported File Types:**
 
-| Extension | Source Type |
-| --------- | ----------- |
-| `.md`, `.markdown` | Markdown |
-| `.pdf` | PDF |
-| `.txt`, `.text` | Text |
+
+| Extension          | Source Type |
+| ------------------ | ----------- |
+| `.md`, `.markdown` | Markdown    |
+| `.pdf`             | PDF         |
+| `.txt`, `.text`    | Text        |
+
 
 **Response:**
 
@@ -897,12 +1193,14 @@ Upload and ingest a document file (PDF, Markdown, Text).
 
 **Response Fields:**
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `doc_id` | string | Unique document identifier |
-| `filename` | string | Original filename |
-| `chunks` | int | Number of text chunks created |
-| `status` | string | `"success"` or `"failed"` |
+
+| Field      | Type   | Description                   |
+| ---------- | ------ | ----------------------------- |
+| `doc_id`   | string | Unique document identifier    |
+| `filename` | string | Original filename             |
+| `chunks`   | int    | Number of text chunks created |
+| `status`   | string | `"success"` or `"failed"`     |
+
 
 **Example:**
 
@@ -922,10 +1220,12 @@ Ingest a document from a web URL.
 
 **Query Parameters:**
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | URL to ingest |
-| `title` | string | No | Document title |
+
+| Parameter | Type   | Required | Description    |
+| --------- | ------ | -------- | -------------- |
+| `url`     | string | Yes      | URL to ingest  |
+| `title`   | string | No       | Document title |
+
 
 **Response:**
 
@@ -971,15 +1271,17 @@ List all uploaded documents.
 
 **Response Fields:**
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `documents` | array | List of document records |
-| `documents[].doc_id` | string | Document identifier |
-| `documents[].filename` | string | Document filename |
-| `documents[].total_chunks` | int | Number of chunks |
-| `documents[].source` | string | Source type (`pdf`, `markdown`, `web`, `text`) |
-| `documents[].uploaded_at` | string | Upload timestamp |
-| `total` | int | Total number of documents |
+
+| Field                      | Type   | Description                                    |
+| -------------------------- | ------ | ---------------------------------------------- |
+| `documents`                | array  | List of document records                       |
+| `documents[].doc_id`       | string | Document identifier                            |
+| `documents[].filename`     | string | Document filename                              |
+| `documents[].total_chunks` | int    | Number of chunks                               |
+| `documents[].source`       | string | Source type (`pdf`, `markdown`, `web`, `text`) |
+| `documents[].uploaded_at`  | string | Upload timestamp                               |
+| `total`                    | int    | Total number of documents                      |
+
 
 ---
 
@@ -991,9 +1293,11 @@ Get detailed statistics for a specific document.
 
 **Path Parameters:**
 
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `doc_id` | string | Document identifier |
+
+| Parameter | Type   | Description         |
+| --------- | ------ | ------------------- |
+| `doc_id`  | string | Document identifier |
+
 
 **Response:**
 
@@ -1025,9 +1329,11 @@ Delete a document and all its associated vectors.
 
 **Path Parameters:**
 
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `doc_id` | string | Document identifier |
+
+| Parameter | Type   | Description         |
+| --------- | ------ | ------------------- |
+| `doc_id`  | string | Document identifier |
+
 
 **Response:**
 
@@ -1068,13 +1374,15 @@ Query the knowledge base and get a response with sources.
 
 **Request Fields:**
 
-| Field | Type | Required | Default | Description |
-| ----- | ---- | -------- | ------- | ----------- |
-| `query` | string | Yes | - | User question |
-| `session_id` | string | No | Auto-generated | Session identifier for conversation continuity |
-| `doc_ids` | array | No | All docs | Filter to specific documents |
-| `top_k` | int | No | 5 | Number of context chunks to retrieve (1-20) |
-| `temperature` | float | No | 0.7 | LLM temperature (0-2) |
+
+| Field         | Type   | Required | Default        | Description                                    |
+| ------------- | ------ | -------- | -------------- | ---------------------------------------------- |
+| `query`       | string | Yes      | -              | User question                                  |
+| `session_id`  | string | No       | Auto-generated | Session identifier for conversation continuity |
+| `doc_ids`     | array  | No       | All docs       | Filter to specific documents                   |
+| `top_k`       | int    | No       | 5              | Number of context chunks to retrieve (1-20)    |
+| `temperature` | float  | No       | 0.7            | LLM temperature (0-2)                          |
+
 
 **Response:**
 
@@ -1100,16 +1408,18 @@ Query the knowledge base and get a response with sources.
 
 **Response Fields:**
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `answer` | string | Generated response |
-| `sources` | array | Retrieved context chunks |
-| `sources[].text` | string | Source text excerpt |
-| `sources[].score` | float | Relevance score (0-1) |
-| `sources[].metadata` | object | Source metadata |
-| `session_id` | string | Session identifier |
-| `model` | string | LLM model used |
-| `processing_time_ms` | float | Processing time |
+
+| Field                | Type   | Description              |
+| -------------------- | ------ | ------------------------ |
+| `answer`             | string | Generated response       |
+| `sources`            | array  | Retrieved context chunks |
+| `sources[].text`     | string | Source text excerpt      |
+| `sources[].score`    | float  | Relevance score (0-1)    |
+| `sources[].metadata` | object | Source metadata          |
+| `session_id`         | string | Session identifier       |
+| `model`              | string | LLM model used           |
+| `processing_time_ms` | float  | Processing time          |
+
 
 ---
 
@@ -1143,18 +1453,22 @@ data: {"processing_time_ms": 1234.5, "model": "qwen2.5:7b"}
 
 **Event Types:**
 
-| Event | Description |
-| ----- | ----------- |
-| `data: ...` | Response text chunks |
-| `data: [DONE]` | End of text stream |
+
+| Event            | Description                |
+| ---------------- | -------------------------- |
+| `data: ...`      | Response text chunks       |
+| `data: [DONE]`   | End of text stream         |
 | `event: sources` | Retrieved source documents |
-| `event: meta` | Response metadata |
+| `event: meta`    | Response metadata          |
+
 
 **Response Headers:**
 
-| Header | Description |
-| ------ | ----------- |
+
+| Header         | Description        |
+| -------------- | ------------------ |
 | `X-Session-Id` | Session identifier |
+
 
 **Example:**
 
@@ -1175,9 +1489,11 @@ Retrieve chat history for a session.
 
 **Path Parameters:**
 
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
+
+| Parameter    | Type   | Description        |
+| ------------ | ------ | ------------------ |
 | `session_id` | string | Session identifier |
+
 
 **Response:**
 
@@ -1218,9 +1534,11 @@ Delete all messages for a session.
 
 **Path Parameters:**
 
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
+
+| Parameter    | Type   | Description        |
+| ------------ | ------ | ------------------ |
 | `session_id` | string | Session identifier |
+
 
 **Response:**
 
@@ -1241,11 +1559,13 @@ Ingest raw text as a document without uploading a file.
 
 **Request Parameters:**
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `text` | string | Yes | Text content to ingest |
-| `title` | string | No | Document title (default: "Text Document") |
-| `doc_id` | string | No | Custom document ID |
+
+| Parameter | Type   | Required | Description                               |
+| --------- | ------ | -------- | ----------------------------------------- |
+| `text`    | string | Yes      | Text content to ingest                    |
+| `title`   | string | No       | Document title (default: "Text Document") |
+| `doc_id`  | string | No       | Custom document ID                        |
+
 
 **Response:**
 
@@ -1637,5 +1957,8 @@ curl http://localhost:8001/cache/stats
 # RAG - Reload config
 curl -X POST http://localhost:8001/reload
 ```
+
+```
+
 ```
 

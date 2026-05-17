@@ -5,7 +5,7 @@ import {
   AIInfraPanel,
 } from './components/panels';
 import { RAGChat } from './components/RAGChat';
-import { ImageUploader } from './components/ImageUploader';
+import { VisionPanel } from './components/VisionPanel';
 import { AIHub } from './components/AIHub';
 import { I18nProvider, useI18n, Language, languageNames } from './i18n';
 import { colors, spacing, typography, radius } from './theme';
@@ -179,7 +179,7 @@ function AppContent() {
     switch (activeTab) {
       case 'aiinfra': return <AIInfraPanel />;
       case 'rag': return <RAGChat />;
-      case 'vision': return <ImageUploader />;
+      case 'vision': return <VisionPanel />;
       case 'aihubs': return <AIHub />;
     }
   };

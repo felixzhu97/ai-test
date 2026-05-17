@@ -3,61 +3,111 @@
 
 LAYOUT_WITH_LEGEND()
 
-title 组件图 (C3) - Vision Service 架构
+title 组件图 (C4) - Vision Service DDD 架构
 
 Container_Boundary(vision_service, "Vision Service (Port 8000)") {
 
-    ' === API 层 ===
+    ' === API Layer ===
     System_Boundary(api_layer, "API Layer") {
         Component(api_router, "API Router", "FastAPI", "路由定义")
         Component(video_api, "Video API", "FastAPI", "视频生成端点")
         Component(image_gen_api, "Image Gen API", "FastAPI", "图像生成端点")
+        Component(vision_api, "Vision API", "FastAPI", "视觉识别端点")
     }
 
-    ' === 核心服务 ===
-    System_Boundary(core_services, "Core Services") {
-        Component(video_service, "Video Service", "Python", "视频生成核心逻辑")
-        Component(image_gen_service, "Image Gen Service", "Python", "图像生成核心逻辑")
+    ' === Application Layer ===
+    System_Boundary(application_layer, "Application Layer") {
+        Component(generate_video_uc, "GenerateVideoUseCase", "Python", "视频生成用例")
+        Component(check_video_status_uc, "CheckVideoStatusUseCase", "Python", "视频状态查询用例")
     }
 
-    ' === Provider 层 ===
-    System_Boundary(providers, "Providers") {
-        Component(provider_factory, "Provider Factory", "Python", "Provider 工厂类")
-        Component(kling_provider, "Kling Provider", "Python", "快手可灵视频生成")
-        Component(runway_provider, "Runway Provider", "Python", "Runway ML 视频生成")
-        Component(pika_provider, "Pika Provider", "Python", "Pika Labs 视频生成")
-        Component(sora_provider, "Sora Provider", "Python", "OpenAI Sora 视频生成")
-        Component(replicate_provider, "Replicate Provider", "Python", "Replicate 通用生成")
-        Component(mock_provider, "Mock Provider", "Python", "测试用 Mock")
+    ' === Application DTOs ===
+    System_Boundary(application_dtos, "Application DTOs") {
+        Component(video_dtos, "VideoDTOs", "Pydantic", "视频请求/响应DTO")
+        Component(image_dtos, "ImageDTOs", "Pydantic", "图像请求/响应DTO")
+        Component(vision_dtos, "VisionDTOs", "Pydantic", "视觉请求/响应DTO")
     }
 
-    ' === 配置层 ===
-    System_Boundary(config, "Configuration") {
-        Component(video_config, "Video Config", "Pydantic", "视频生成配置")
-        Component(image_gen_config, "Image Gen Config", "Pydantic", "图像生成配置")
-        Component(base_config, "Base Config", "Pydantic Settings", "基础配置管理")
+    ' === Domain Layer ===
+    System_Boundary(domain_layer, "Domain Layer") {
+        ' Domain Entities
+        Component(video_task_entity, "VideoTask", "Entity", "视频任务实体\n状态机: PENDING→PROCESSING→COMPLETED/FAILED")
+        Component(image_entity, "Image", "Entity", "图像实体")
+
+        ' Value Objects
+        Component(video_config_vo, "VideoConfig", "Value Object", "视频配置(不可变)")
+        Component(dimensions_vo, "Dimensions", "Value Object", "尺寸值对象")
+
+        ' Domain Services
+        Component(video_gen_service, "VideoGenerationService", "Domain Service", "视频生成编排")
+        Component(image_gen_service, "ImageGenerationService", "Domain Service", "图像生成编排")
+
+        ' Domain Events
+        Component(video_events, "VideoEvents", "Domain Events", "VideoTaskCreatedEvent\nVideoTaskCompletedEvent\nVideoTaskFailedEvent")
     }
 
-    ' === 客户端 ===
-    System_Boundary(clients, "Clients") {
-        Component(image_gen_client, "Image Gen Client", "httpx", "图像生成 API 客户端")
+    ' === Infrastructure Layer ===
+    System_Boundary(infrastructure_layer, "Infrastructure Layer") {
+        ' Dependency Injection
+        Component(di_container, "DependencyContainer", "Python", "依赖注入容器")
+
+        ' Provider Interfaces
+        Component(provider_interface, "VideoProvider", "Protocol", "Provider接口定义")
+
+        ' Provider Implementations
+        Component(provider_factory, "ProviderFactory", "Python", "Provider工厂")
+        Component(kling_provider, "KlingProvider", "Python", "快手可灵")
+        Component(runway_provider, "RunwayProvider", "Python", "Runway ML")
+        Component(pika_provider, "PikaProvider", "Python", "Pika Labs")
+        Component(sora_provider, "SoraProvider", "Python", "OpenAI Sora")
+        Component(replicate_provider, "ReplicateProvider", "Python", "Replicate通用")
+        Component(mock_provider, "MockProvider", "Python", "测试Mock")
     }
 
-    ' === 核心模块 ===
-    System_Boundary(core, "Core") {
-        Component(schemas, "Schemas", "Pydantic", "请求/响应模型")
+    ' === Configuration ===
+    System_Boundary(config_layer, "Configuration") {
+        Component(base_config, "BaseConfig", "Pydantic Settings", "基础配置管理")
+    }
+
+    ' === Vision Models (Legacy/Supporting) ===
+    System_Boundary(models_layer, "ML Models") {
+        Component(yolo_detector, "YOLODetector", "PyTorch", "目标检测")
+        Component(blip_captioner, "BLIPCaptioner", "PyTorch", "图像描述")
+        Component(easyocr, "EasyOCRProcessor", "EasyOCR", "文字识别")
+        Component(t2i_generator, "TextToImage", "Python", "文生图模型")
     }
 }
 
-' === API 路由关系 ===
+' === API → Application Layer 关系 ===
 Rel(api_router, video_api, "路由")
 Rel(api_router, image_gen_api, "路由")
-Rel(video_api, video_service, "调用")
-Rel(image_gen_api, image_gen_service, "调用")
+Rel(api_router, vision_api, "路由")
 
-' === 服务与 Provider 关系 ===
-Rel(video_service, provider_factory, "创建 Provider")
-Rel(image_gen_service, provider_factory, "创建 Provider")
+Rel(video_api, generate_video_uc, "调用")
+Rel(video_api, check_video_status_uc, "调用")
+Rel(video_api, video_dtos, "使用")
+
+' === Application → Domain Layer 关系 ===
+Rel(generate_video_uc, video_gen_service, "依赖")
+Rel(generate_video_uc, video_task_entity, "创建")
+Rel(generate_video_uc, video_config_vo, "使用")
+
+Rel(check_video_status_uc, video_gen_service, "调用")
+Rel(check_video_status_uc, video_task_entity, "更新状态")
+
+' === Domain Services → Entities/Value Objects ===
+Rel(video_gen_service, video_task_entity, "创建/更新")
+Rel(video_gen_service, video_config_vo, "使用")
+Rel(video_gen_service, video_events, "发布事件")
+
+' === Dependency Injection ===
+Rel(di_container, video_gen_service, "注入")
+Rel(di_container, image_gen_service, "注入")
+Rel(di_container, generate_video_uc, "注入")
+Rel(di_container, check_video_status_uc, "注入")
+
+' === Provider 实现 ===
+Rel(provider_factory, provider_interface, "返回")
 Rel(provider_factory, kling_provider, "创建")
 Rel(provider_factory, runway_provider, "创建")
 Rel(provider_factory, pika_provider, "创建")
@@ -65,20 +115,25 @@ Rel(provider_factory, sora_provider, "创建")
 Rel(provider_factory, replicate_provider, "创建")
 Rel(provider_factory, mock_provider, "创建")
 
-' === 配置关系 ===
-Rel(video_config, base_config, "继承")
-Rel(image_gen_config, base_config, "继承")
-Rel(kling_provider, video_config, "使用")
-Rel(runway_provider, video_config, "使用")
-Rel(pika_provider, video_config, "使用")
-Rel(sora_provider, video_config, "使用")
+Rel(kling_provider, provider_interface, "实现")
+Rel(runway_provider, provider_interface, "实现")
+Rel(pika_provider, provider_interface, "实现")
+Rel(sora_provider, provider_interface, "实现")
+Rel(replicate_provider, provider_interface, "实现")
+Rel(mock_provider, provider_interface, "实现")
 
-' === 客户端关系 ===
-Rel(image_gen_client, image_gen_config, "使用配置")
+' === Domain Service → Provider Interface ===
+Rel(video_gen_service, provider_interface, "依赖(注入)")
+Rel(di_container, provider_interface, "注入实现")
 
-' === Schema 关系 ===
-Rel(schemas, video_api, "定义模型")
-Rel(schemas, image_gen_api, "定义模型")
+' === Configuration ===
+Rel(base_config, video_config_vo, "配置映射")
+Rel(di_container, base_config, "读取配置")
+
+' === Vision API → Models ===
+Rel(vision_api, yolo_detector, "使用")
+Rel(vision_api, blip_captioner, "使用")
+Rel(vision_api, easyocr, "使用")
 
 SHOW_LEGEND()
 @enduml

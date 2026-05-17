@@ -1,6 +1,10 @@
+"""Kling Video Provider implementation.
+
+This provider integrates with Kling AI API for text-to-video generation.
+"""
+
 from typing import Optional
 from .base import BaseVideoProvider
-from ..core.video_config import get_settings
 from loguru import logger
 import httpx
 import time
@@ -10,11 +14,21 @@ import json
 
 
 class KlingVideoProvider(BaseVideoProvider):
-    def __init__(self):
-        self.settings = get_settings()
-        self.api_key = self.settings.KLING_API_KEY
-        self.api_secret = self.settings.KLING_API_SECRET
-        self.base_url = "https://api.kling.ai/v1/videos"
+    """Kling AI text-to-video provider.
+    
+    Kling AI provides high-quality video generation with smooth motion
+    and realistic rendering.
+    """
+    
+    def __init__(self, api_key: str = "", api_secret: str = ""):
+        """Initialize Kling provider.
+        
+        Args:
+            api_key: Kling API key.
+            api_secret: Kling API secret.
+        """
+        super().__init__(api_token=api_key, base_url="https://api.kling.ai/v1/videos")
+        self.api_secret = api_secret
 
     @property
     def provider_name(self) -> str:
@@ -22,11 +36,11 @@ class KlingVideoProvider(BaseVideoProvider):
 
     def _generate_auth_token(self) -> str:
         timestamp = str(int(time.time()))
-        signature_str = f"{self.api_key}{self.api_secret}{timestamp}"
+        signature_str = f"{self.api_token}{self.api_secret}{timestamp}"
         signature = hashlib.sha256(signature_str.encode()).hexdigest()
         token = base64.b64encode(
             json.dumps({
-                "api_key": self.api_key,
+                "api_key": self.api_token,
                 "timestamp": timestamp,
                 "signature": signature
             }).encode()
@@ -43,7 +57,7 @@ class KlingVideoProvider(BaseVideoProvider):
         quality: str = "high",
         **kwargs
     ) -> dict:
-        if not self.api_key or not self.api_secret:
+        if not self.api_token or not self.api_secret:
             raise ValueError("KLING_API_KEY and KLING_API_SECRET are not configured")
 
         token = self._generate_auth_token()
@@ -82,7 +96,7 @@ class KlingVideoProvider(BaseVideoProvider):
             raise
 
     async def get_task_status(self, task_id: str) -> dict:
-        if not self.api_key or not self.api_secret:
+        if not self.api_token or not self.api_secret:
             raise ValueError("KLING_API_KEY and KLING_API_SECRET are not configured")
 
         token = self._generate_auth_token()

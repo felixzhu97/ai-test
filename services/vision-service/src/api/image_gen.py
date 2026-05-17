@@ -4,13 +4,16 @@ import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
-from ..schemas.image_gen import (
-    ImageGenRequest, ImageGenResponse,
-    ImageVariationRequest, ImageUpscaleRequest,
-    AvailableModelsResponse
+from ..application.dtos.image_dtos import (
+    ImageGenRequest,
+    ImageGenResponse,
+    ImageVariationRequest,
+    ImageUpscaleRequest,
+    AvailableModelsResponse,
 )
-from ..models.text_to_image import TextToImageGenerator, get_generator
+from ..core.dependencies import get_generator
 from ..core.image_gen_config import get_image_gen_settings
+from ..models.text_to_image import TextToImageGenerator
 
 router = APIRouter(prefix="/image-gen", tags=["image-generation"])
 logger = logging.getLogger(__name__)
@@ -18,38 +21,12 @@ logger = logging.getLogger(__name__)
 _executor = ThreadPoolExecutor(max_workers=2)
 
 
-def get_generator_dep() -> TextToImageGenerator:
-    """Dependency for getting the generator instance."""
-    return get_generator()
-
-
 @router.post("/generate", response_model=ImageGenResponse)
 async def generate_image(
     request: ImageGenRequest,
-    generator: TextToImageGenerator = Depends(get_generator_dep)
+    generator: TextToImageGenerator = Depends(get_generator)
 ):
-    """
-    Generate images from text prompt using Stable Diffusion.
-    
-    Supports multiple models:
-    - SDXL (default): Fast, good quality
-    - SD3: Higher quality, better faces and composition
-    
-    **Parameters:**
-    - prompt: Text description of the desired image (required)
-    - negative_prompt: Things to avoid in the image
-    - model: Model to use (sdxl, sd3)
-    - width/height: Output dimensions (256-2048, must be divisible by 8)
-    - num_inference_steps: Quality vs speed tradeoff (1-150)
-    - guidance_scale: How closely to follow the prompt (1-20)
-    - seed: For reproducible results (optional)
-    - num_images: Number of images to generate (1-4)
-    - style_preset: Optional style (photograph, digital-art, etc.)
-    
-    **Returns:**
-    - images: List of base64-encoded PNG images
-    - metadata: Generation parameters and timing info
-    """
+    """Generate images from text prompt using Stable Diffusion."""
     if not request.prompt.strip():
         raise HTTPException(400, "Prompt cannot be empty")
     
@@ -80,27 +57,9 @@ async def generate_image(
 @router.post("/variation", response_model=ImageGenResponse)
 async def generate_variation(
     request: ImageVariationRequest,
-    generator: TextToImageGenerator = Depends(get_generator_dep)
+    generator: TextToImageGenerator = Depends(get_generator)
 ):
-    """
-    Generate variations of an existing image.
-    
-    The variation maintains the overall composition while applying
-    the style/interpretation from the prompt.
-    
-    **Parameters:**
-    - image: Base64-encoded source image
-    - prompt: Description of the desired variation
-    - strength: How much to transform (0.0-1.0, lower = more faithful)
-    - num_inference_steps: Quality vs speed (1-150)
-    - guidance_scale: Prompt adherence (1-20)
-    - seed: Random seed (optional)
-    - num_images: Number of variations (1-4)
-    
-    **Returns:**
-    - images: Generated variations as base64 PNG
-    - metadata: Generation parameters
-    """
+    """Generate variations of an existing image."""
     if not request.prompt.strip():
         raise HTTPException(400, "Prompt cannot be empty")
     
@@ -120,23 +79,9 @@ async def generate_variation(
 @router.post("/upscale", response_model=ImageGenResponse)
 async def upscale_image(
     request: ImageUpscaleRequest,
-    generator: TextToImageGenerator = Depends(get_generator_dep)
+    generator: TextToImageGenerator = Depends(get_generator)
 ):
-    """
-    Upscale an image using AI-powered upsampling.
-    
-    Supports 2x and 4x upscaling with optional prompt-guided
-    enhancement for better detail preservation.
-    
-    **Parameters:**
-    - image: Base64-encoded image to upscale
-    - scale: Upscaling factor (2 or 4)
-    - prompt: Optional guidance for detail enhancement
-    
-    **Returns:**
-    - images: Upscaled image as base64 PNG
-    - metadata: Scale factor and timing
-    """
+    """Upscale an image using AI-powered upsampling."""
     if request.scale not in (2, 4):
         raise HTTPException(400, "Scale must be 2 or 4")
 
@@ -155,19 +100,15 @@ async def upscale_image(
 
 @router.get("/models", response_model=AvailableModelsResponse)
 async def list_models(
-    generator: TextToImageGenerator = Depends(get_generator_dep)
+    generator: TextToImageGenerator = Depends(get_generator)
 ):
-    """
-    Get information about available image generation models.
-    
-    Returns model capabilities, requirements, and recommended settings.
-    """
+    """Get information about available image generation models."""
     return generator.get_available_models()
 
 
 @router.post("/cache/clear")
 async def clear_cache(
-    generator: TextToImageGenerator = Depends(get_generator_dep)
+    generator: TextToImageGenerator = Depends(get_generator)
 ):
     """Clear the model cache to free GPU memory."""
     generator.clear_cache()
@@ -176,7 +117,7 @@ async def clear_cache(
 
 @router.get("/health")
 async def health_check(
-    generator: TextToImageGenerator = Depends(get_generator_dep)
+    generator: TextToImageGenerator = Depends(get_generator)
 ):
     """Check the status of the image generation service."""
     import torch

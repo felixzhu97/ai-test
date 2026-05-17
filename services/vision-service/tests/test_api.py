@@ -1,10 +1,11 @@
+"""Tests for API endpoints with dependency injection support."""
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 from PIL import Image
 import io
 
-from src.api.vision import router, load_image, get_yolo, get_blip, get_ocr
 from src.schemas.vision import (
     DetectionResponse,
     DetectionResult,
@@ -16,6 +17,7 @@ from src.schemas.vision import (
 
 @pytest.fixture
 def mock_yolo():
+    """Mock YOLO detector."""
     mock = MagicMock()
     mock.detect = AsyncMock(return_value=DetectionResponse(
         model="yolo11n.pt",
@@ -31,6 +33,7 @@ def mock_yolo():
 
 @pytest.fixture
 def mock_blip():
+    """Mock BLIP captioner."""
     mock = MagicMock()
     mock.caption = AsyncMock(return_value=CaptionResponse(
         model="test-model",
@@ -42,6 +45,7 @@ def mock_blip():
 
 @pytest.fixture
 def mock_ocr():
+    """Mock OCR processor."""
     mock = MagicMock()
     mock.extract_text = AsyncMock(return_value=OCRResponse(
         model="PaddleOCR",
@@ -53,31 +57,18 @@ def mock_ocr():
 
 
 @pytest.fixture
-def client(mock_yolo, mock_blip, mock_ocr):
-    from src.main import app
-    import src.api.vision as vision_module
-
-    vision_module._yolo = mock_yolo
-    vision_module._blip = mock_blip
-    vision_module._ocr = mock_ocr
-
-    original_get_yolo = vision_module.get_yolo
-    original_get_blip = vision_module.get_blip
-    original_get_ocr = vision_module.get_ocr
-
-    vision_module.get_yolo = lambda: mock_yolo
-    vision_module.get_blip = lambda: mock_blip
-    vision_module.get_ocr = lambda: mock_ocr
-
-    yield TestClient(app)
-
-    vision_module.get_yolo = original_get_yolo
-    vision_module.get_blip = original_get_blip
-    vision_module.get_ocr = original_get_ocr
+def client_with_mocks(mock_yolo, mock_blip, mock_ocr):
+    """Create test client with mocked model dependencies."""
+    with patch("src.core.dependencies.ModelContainer.get_yolo", return_value=mock_yolo):
+        with patch("src.core.dependencies.ModelContainer.get_blip", return_value=mock_blip):
+            with patch("src.core.dependencies.ModelContainer.get_ocr", return_value=mock_ocr):
+                from src.main import app
+                yield TestClient(app)
 
 
 @pytest.fixture
 def sample_image_bytes():
+    """Create sample image bytes."""
     img = Image.new("RGB", (100, 100), color="red")
     buf = io.BytesIO()
     img.save(buf, format="JPEG")
@@ -86,6 +77,8 @@ def sample_image_bytes():
 
 
 class TestLoadImage:
+    """Tests for load_image utility function."""
+
     @pytest.mark.asyncio
     async def test_load_image_valid(self, sample_image_bytes):
         from src.api.vision import load_image
@@ -132,8 +125,10 @@ class TestLoadImage:
 
 
 class TestDetectEndpoint:
-    def test_detect_success(self, client, sample_image_bytes):
-        response = client.post(
+    """Tests for detect endpoint."""
+
+    def test_detect_success(self, client_with_mocks, sample_image_bytes):
+        response = client_with_mocks.post(
             "/vision/detect",
             files={"file": ("test.jpg", sample_image_bytes, "image/jpeg")},
             data={"conf": 0.5},
@@ -144,14 +139,16 @@ class TestDetectEndpoint:
         assert data["model"] == "yolo11n.pt"
         assert "detections" in data
 
-    def test_detect_no_file(self, client):
-        response = client.post("/vision/detect")
+    def test_detect_no_file(self, client_with_mocks):
+        response = client_with_mocks.post("/vision/detect")
         assert response.status_code == 422
 
 
 class TestCaptionEndpoint:
-    def test_caption_success(self, client, sample_image_bytes):
-        response = client.post(
+    """Tests for caption endpoint."""
+
+    def test_caption_success(self, client_with_mocks, sample_image_bytes):
+        response = client_with_mocks.post(
             "/vision/caption",
             files={"file": ("test.jpg", sample_image_bytes, "image/jpeg")},
         )
@@ -160,14 +157,16 @@ class TestCaptionEndpoint:
         assert data["task"] == "caption_image"
         assert "caption" in data
 
-    def test_caption_no_file(self, client):
-        response = client.post("/vision/caption")
+    def test_caption_no_file(self, client_with_mocks):
+        response = client_with_mocks.post("/vision/caption")
         assert response.status_code == 422
 
 
 class TestOCRAEndpoint:
-    def test_ocr_success(self, client, sample_image_bytes):
-        response = client.post(
+    """Tests for OCR endpoint."""
+
+    def test_ocr_success(self, client_with_mocks, sample_image_bytes):
+        response = client_with_mocks.post(
             "/vision/ocr",
             files={"file": ("test.jpg", sample_image_bytes, "image/jpeg")},
         )
@@ -176,14 +175,16 @@ class TestOCRAEndpoint:
         assert data["task"] == "extract_text"
         assert "results" in data
 
-    def test_ocr_no_file(self, client):
-        response = client.post("/vision/ocr")
+    def test_ocr_no_file(self, client_with_mocks):
+        response = client_with_mocks.post("/vision/ocr")
         assert response.status_code == 422
 
 
 class TestAnalyzeEndpoint:
-    def test_analyze_caption_task(self, client, sample_image_bytes):
-        response = client.post(
+    """Tests for analyze endpoint."""
+
+    def test_analyze_caption_task(self, client_with_mocks, sample_image_bytes):
+        response = client_with_mocks.post(
             "/vision/analyze?task=caption_image",
             files={"file": ("test.jpg", sample_image_bytes, "image/jpeg")},
         )
@@ -191,8 +192,8 @@ class TestAnalyzeEndpoint:
         data = response.json()
         assert "caption" in data
 
-    def test_analyze_detect_task(self, client, sample_image_bytes):
-        response = client.post(
+    def test_analyze_detect_task(self, client_with_mocks, sample_image_bytes):
+        response = client_with_mocks.post(
             "/vision/analyze?task=detect_objects",
             files={"file": ("test.jpg", sample_image_bytes, "image/jpeg")},
         )
@@ -200,8 +201,8 @@ class TestAnalyzeEndpoint:
         data = response.json()
         assert "detections" in data
 
-    def test_analyze_ocr_task(self, client, sample_image_bytes):
-        response = client.post(
+    def test_analyze_ocr_task(self, client_with_mocks, sample_image_bytes):
+        response = client_with_mocks.post(
             "/vision/analyze?task=extract_text",
             files={"file": ("test.jpg", sample_image_bytes, "image/jpeg")},
         )
@@ -209,8 +210,8 @@ class TestAnalyzeEndpoint:
         data = response.json()
         assert "results" in data
 
-    def test_analyze_full_task(self, client, sample_image_bytes):
-        response = client.post(
+    def test_analyze_full_task(self, client_with_mocks, sample_image_bytes):
+        response = client_with_mocks.post(
             "/vision/analyze?task=analyze_image",
             files={"file": ("test.jpg", sample_image_bytes, "image/jpeg")},
         )
@@ -219,3 +220,25 @@ class TestAnalyzeEndpoint:
         assert "caption" in data
         assert "detections" in data
         assert "ocr" in data
+
+
+class TestHealthEndpoint:
+    """Tests for health check endpoints."""
+
+    def test_health_check(self):
+        """Should return health status."""
+        from src.main import app
+        client = TestClient(app)
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert response.json()["status"] == "ok"
+
+    def test_root_endpoint(self):
+        """Should return service info."""
+        from src.main import app
+        client = TestClient(app)
+        response = client.get("/")
+        assert response.status_code == 200
+        data = response.json()
+        assert "name" in data
+        assert "version" in data

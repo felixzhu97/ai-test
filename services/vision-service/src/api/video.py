@@ -1,11 +1,12 @@
-from fastapi import APIRouter, HTTPException
-from ..schemas.video import (
+from fastapi import APIRouter, HTTPException, Depends
+from ..application.dtos.video_dtos import (
     VideoGenerateRequest,
     VideoGenerateResponse,
     VideoTaskResponse,
     AdvancedVideoRequest,
 )
-from ..providers import get_provider
+from ..core.dependencies import get_video_provider
+from ..providers.base import BaseVideoProvider
 from loguru import logger
 from datetime import datetime
 
@@ -13,8 +14,10 @@ router = APIRouter(prefix="/video", tags=["Video Generation"])
 
 
 @router.post("/generate", response_model=VideoGenerateResponse)
-async def generate_video(request: VideoGenerateRequest):
-    provider = get_provider()
+async def generate_video(
+    request: VideoGenerateRequest,
+    provider: BaseVideoProvider = Depends(get_video_provider)
+):
     try:
         result = await provider.generate_video(
             prompt=request.prompt,
@@ -38,8 +41,10 @@ async def generate_video(request: VideoGenerateRequest):
 
 
 @router.post("/generate/advanced", response_model=VideoGenerateResponse)
-async def generate_video_advanced(request: AdvancedVideoRequest):
-    provider = get_provider()
+async def generate_video_advanced(
+    request: AdvancedVideoRequest,
+    provider: BaseVideoProvider = Depends(get_video_provider)
+):
     try:
         result = await provider.generate_video(
             prompt=request.prompt,
@@ -67,8 +72,10 @@ async def generate_video_advanced(request: AdvancedVideoRequest):
 
 
 @router.get("/status/{task_id}", response_model=VideoTaskResponse)
-async def get_video_status(task_id: str):
-    provider = get_provider()
+async def get_video_status(
+    task_id: str,
+    provider: BaseVideoProvider = Depends(get_video_provider)
+):
     try:
         result = await provider.get_task_status(task_id)
         if "error" in result and result.get("error") == "Task not found":

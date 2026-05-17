@@ -2,40 +2,19 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from PIL import Image
 import io
 from typing import Optional
-from ..schemas.vision import (
-    TaskType, DetectionResponse, CaptionResponse, OCRResponse
+from ..application.dtos.vision_dtos import (
+    TaskType,
+    DetectionResponseDTO as DetectionResponse,
+    CaptionResponseDTO as CaptionResponse,
+    OCRResponseDTO as OCRResponse,
 )
+from ..core.dependencies import get_yolo, get_blip, get_easyocr
+from ..core.config import get_settings
 from ..models.yolo_detector import YOLODetector
 from ..models.blip_captioner import BLIPCaptioner
-from ..models.paddle_ocr import PaddleOCRProcessor
-from ..core.config import get_settings
+from ..models.easy_ocr import EasyOCRProcessor
 
 router = APIRouter(prefix="/vision", tags=["vision"])
-
-_yolo: Optional[YOLODetector] = None
-_blip: Optional[BLIPCaptioner] = None
-_ocr: Optional[PaddleOCRProcessor] = None
-
-
-def get_yolo() -> YOLODetector:
-    global _yolo
-    if _yolo is None:
-        _yolo = YOLODetector()
-    return _yolo
-
-
-def get_blip() -> BLIPCaptioner:
-    global _blip
-    if _blip is None:
-        _blip = BLIPCaptioner()
-    return _blip
-
-
-def get_ocr() -> PaddleOCRProcessor:
-    global _ocr
-    if _ocr is None:
-        _ocr = PaddleOCRProcessor()
-    return _ocr
 
 
 async def load_image(file: UploadFile) -> Image.Image:
@@ -71,8 +50,8 @@ async def caption_image(
 @router.post("/ocr", response_model=OCRResponse)
 async def extract_text(
     file: UploadFile = File(...),
-    ocr: PaddleOCRProcessor = Depends(get_ocr),
-    engine: str = "paddleocr"
+    ocr: EasyOCRProcessor = Depends(get_easyocr),
+    engine: str = "easyocr"
 ):
     image = await load_image(file)
     return await ocr.extract_text(image, engine=engine)
@@ -84,7 +63,7 @@ async def analyze_image(
     task: TaskType = TaskType.CAPTION_IMAGE,
     detector: YOLODetector = Depends(get_yolo),
     captioner: BLIPCaptioner = Depends(get_blip),
-    ocr: PaddleOCRProcessor = Depends(get_ocr)
+    ocr: EasyOCRProcessor = Depends(get_easyocr)
 ):
     image = await load_image(file)
 

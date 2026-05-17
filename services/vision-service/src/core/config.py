@@ -1,5 +1,15 @@
+from enum import Enum
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+
+
+class VideoProvider(str, Enum):
+    REPLICATE = "replicate"
+    KLING = "kling"
+    RUNWAY = "runway"
+    PIKA = "pika"
+    SORA = "sora"
+    MOCK = "mock"
 
 
 class Settings(BaseSettings):

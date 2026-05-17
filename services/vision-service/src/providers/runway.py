@@ -19,19 +19,14 @@ class RunwayVideoProvider(BaseVideoProvider):
     API Documentation: https://docs.runwayml.com/
     """
     
-    def __init__(self):
-        self.api_key: str = ""
-        self.base_url = "https://api.runwayml.com/v1"
-        self._load_credentials()
-    
-    def _load_credentials(self):
-        """Load API credentials from environment/settings."""
-        try:
-            from ..core.video_config import get_settings
-            settings = get_settings()
-            self.api_key = settings.get("RUNWAY_API_KEY", "")
-        except Exception:
-            self.api_key = ""
+    def __init__(self, api_key: str = ""):
+        """Initialize Runway provider.
+        
+        Args:
+            api_key: Runway API key.
+        """
+        super().__init__(api_token=api_key, base_url="https://api.runwayml.com/v1")
+        self.api_key = api_key
     
     @property
     def provider_name(self) -> str:
@@ -60,7 +55,7 @@ class RunwayVideoProvider(BaseVideoProvider):
         Returns:
             Dictionary with task_id and status.
         """
-        if not self.api_key:
+        if not self.api_token:
             raise ValueError("RUNWAY_API_KEY is not configured. Please set it in your environment.")
         
         # Map aspect ratio to Runway format
@@ -88,7 +83,7 @@ class RunwayVideoProvider(BaseVideoProvider):
                 response = await client.post(
                     f"{self.base_url}/gen3_turbo/text_to_video",
                     headers={
-                        "Authorization": f"Bearer {self.api_key}",
+                        "Authorization": f"Bearer {self.api_token}",
                         "Content-Type": "application/json",
                     },
                     json=payload
@@ -118,7 +113,7 @@ class RunwayVideoProvider(BaseVideoProvider):
         Returns:
             Dictionary with status and video_url if completed.
         """
-        if not self.api_key:
+        if not self.api_token:
             raise ValueError("RUNWAY_API_KEY is not configured")
         
         try:
@@ -126,7 +121,7 @@ class RunwayVideoProvider(BaseVideoProvider):
                 response = await client.get(
                     f"{self.base_url}/tasks/{task_id}",
                     headers={
-                        "Authorization": f"Bearer {self.api_key}",
+                        "Authorization": f"Bearer {self.api_token}",
                     }
                 )
                 response.raise_for_status()

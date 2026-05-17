@@ -1,3 +1,9 @@
+"""Mock Video Provider for testing.
+
+This provider simulates video generation for testing purposes
+without making actual API calls.
+"""
+
 from typing import Optional
 from .base import BaseVideoProvider
 from loguru import logger
@@ -7,7 +13,16 @@ from datetime import datetime
 
 
 class MockVideoProvider(BaseVideoProvider):
+    """Mock video provider for testing.
+    
+    Simulates video generation with realistic async behavior.
+    """
+    
     _tasks: dict[str, dict] = {}
+    
+    def __init__(self):
+        """Initialize mock provider."""
+        super().__init__()
 
     @property
     def provider_name(self) -> str:

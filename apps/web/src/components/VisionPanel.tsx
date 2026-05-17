@@ -9,6 +9,13 @@ import { ImageZoomModal } from './ImageZoomModal';
 
 type TaskType = 'caption' | 'detect' | 'ocr';
 
+interface TabState {
+  image: string | null;
+  file: File | null;
+  result: Result | null;
+  error: string | null;
+}
+
 interface Detection {
   class_name: string;
   confidence: number;
@@ -303,16 +310,19 @@ const ActionArea = styled.div`
   border-top: 1px solid ${colors.border};
 `;
 
-export function ImageUploader() {
+export function VisionPanel() {
   const { t } = useI18n();
-  const [image, setImage] = useState<string | null>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [result, setResult] = useState<Result | null>(null);
+  const [tabStates, setTabStates] = useState<Record<TaskType, TabState>>({
+    caption: { image: null, file: null, result: null, error: null },
+    detect: { image: null, file: null, result: null, error: null },
+    ocr: { image: null, file: null, result: null, error: null },
+  });
   const [task, setTask] = useState<TaskType>('caption');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const currentState = tabStates[task];
 
   const taskOptions = [
     { value: 'caption' as TaskType, label: t.imageUploader.caption },
@@ -322,16 +332,22 @@ export function ImageUploader() {
 
   const handleFileSelect = useCallback((selectedFile: File) => {
     if (!selectedFile.type.startsWith('image/')) {
-      setError(t.imageUploader.selectImageError);
+      setTabStates(prev => ({
+        ...prev,
+        [task]: { ...prev[task], error: t.imageUploader.selectImageError }
+      }));
       return;
     }
-    setFile(selectedFile);
-    setError(null);
     const reader = new FileReader();
-    reader.onload = (e) => setImage(e.target?.result as string);
+    reader.onload = (e) => {
+      const imageData = e.target?.result as string;
+      setTabStates(prev => ({
+        ...prev,
+        [task]: { image: imageData, file: selectedFile, result: null, error: null }
+      }));
+    };
     reader.readAsDataURL(selectedFile);
-    setResult(null);
-  }, [t.imageUploader.selectImageError]);
+  }, [task, t.imageUploader.selectImageError]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -347,23 +363,27 @@ export function ImageUploader() {
 
   const handleClear = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    setImage(null);
-    setFile(null);
-    setResult(null);
-    setError(null);
+    setTabStates(prev => ({
+      ...prev,
+      [task]: { image: null, file: null, result: null, error: null }
+    }));
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  }, []);
+  }, [task]);
 
   const handleSubmit = useCallback(async () => {
-    if (!file) return;
+    const currentFile = currentState.file;
+    if (!currentFile) return;
+
     setLoading(true);
-    setError(null);
-    setResult(null);
+    setTabStates(prev => ({
+      ...prev,
+      [task]: { ...prev[task], error: null, result: null }
+    }));
 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', currentFile);
 
     const endpoints: Record<TaskType, string> = {
       caption: `${API_BASE}/vision/caption`,
@@ -382,25 +402,31 @@ export function ImageUploader() {
       }
 
       const data = await res.json();
-      setResult(data);
+      setTabStates(prev => ({
+        ...prev,
+        [task]: { ...prev[task], result: data }
+      }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.imageUploader.processingFailed);
+      setTabStates(prev => ({
+        ...prev,
+        [task]: { ...prev[task], error: err instanceof Error ? err.message : t.imageUploader.processingFailed }
+      }));
     } finally {
       setLoading(false);
     }
-  }, [file, task, t.imageUploader.requestFailed, t.imageUploader.processingFailed]);
+  }, [currentState.file, task, t.imageUploader.requestFailed, t.imageUploader.processingFailed]);
 
   const renderResult = () => {
-    if (!result) return <EmptyState>{t.imageUploader.noImageYet}</EmptyState>;
+    if (!currentState.result) return <EmptyState>{t.imageUploader.noImageYet}</EmptyState>;
 
-    if (task === 'caption' && result.caption) {
-      return <ResultText>"{result.caption}"</ResultText>;
+    if (task === 'caption' && currentState.result.caption) {
+      return <ResultText>"{currentState.result.caption}"</ResultText>;
     }
 
-    if (task === 'detect' && result.detections) {
+    if (task === 'detect' && currentState.result.detections) {
       return (
         <DetectionList>
-          {result.detections.map((det, i) => (
+          {currentState.result.detections.map((det, i) => (
             <DetectionItem key={i}>
               <DetectionName>{det.class_name}</DetectionName>
               <Confidence>{(det.confidence * 100).toFixed(0)}%</Confidence>
@@ -410,8 +436,8 @@ export function ImageUploader() {
       );
     }
 
-    if (task === 'ocr' && result.full_text) {
-      return <OCRText>{result.full_text}</OCRText>;
+    if (task === 'ocr' && currentState.result.full_text) {
+      return <OCRText>{currentState.result.full_text}</OCRText>;
     }
 
     return <EmptyState>{t.imageUploader.noImageYet}</EmptyState>;
@@ -426,12 +452,12 @@ export function ImageUploader() {
           onChange={setTask}
         />
       </TabHeader>
-      <TabSection key={task} css={{ animation: `${fadeIn} 0.3s ease` }}>
+      <TabSection css={{ animation: `${fadeIn} 0.3s ease` }}>
         <MainArea>
           <Panel>
             <PanelTitle>{t.imageUploader.imageLabel}</PanelTitle>
             <ImageArea
-              onClick={() => !image && fileInputRef.current?.click()}
+              onClick={() => !currentState.image && fileInputRef.current?.click()}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
             >
@@ -441,12 +467,12 @@ export function ImageUploader() {
                 accept="image/*"
                 onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
               />
-              {image ? (
+              {currentState.image ? (
                 <>
                   <PreviewImage
-                    src={image}
+                    src={currentState.image}
                     alt="Preview"
-                    onClick={() => setZoomedImage(image)}
+                    onClick={() => setZoomedImage(currentState.image)}
                   />
                   <ZoomHint>Click to enlarge</ZoomHint>
                   <ClearButton onClick={handleClear}>×</ClearButton>
@@ -471,13 +497,13 @@ export function ImageUploader() {
             <ResultContent>
               {renderResult()}
             </ResultContent>
-            {error && <ErrorMessage>{error}</ErrorMessage>}
+            {currentState.error && <ErrorMessage>{currentState.error}</ErrorMessage>}
             <ActionArea>
               <Button
                 fullWidth
                 size="lg"
                 onClick={handleSubmit}
-                disabled={!file}
+                disabled={!currentState.file}
               >
                 {loading ? t.imageUploader.analyzing : t.imageUploader.startAnalyze}
               </Button>
