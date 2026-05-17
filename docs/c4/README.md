@@ -14,6 +14,8 @@
 | `component-vision-service.puml` | C3 - Component | Vision Service 组件架构       |
 | `component-media-services.puml` | C3 - Component | TTS/Text/Media Gen 服务组件架构 |
 | `component-rag-service.puml`    | C3 - Component | RAG 服务组件架构                |
+| `component-tts-service.puml`    | C3 - Component | TTS 服务组件架构                |
+| `component-text-service.puml`    | C3 - Component | Text 服务组件架构               |
 | `wardley-map.puml`              | Wardley Map    | 技术演进地图                    |
 
 
@@ -137,4 +139,22 @@ plantuml -o png *.puml
   - Custom Built: 添加 12 AI Agents 架构、TTS 语音合成、Video 生成服务、Feature Store
   - Product: 添加 Stable Diffusion、ElevenLabs/Coqui TTS、Ollama、Sentence Transformers
   - Commodity: 添加 Kubernetes、Redis、Prometheus/Grafana、gRPC、MLflow、Feast
+
+### 2026-05-17 (服务组件图)
+
+- 新增 `component-tts-service.puml` - TTS 服务完整组件架构 (Clean Architecture)
+  - Presentation Layer: TTS Router, Dependencies
+  - Application Layer: TTSApplicationService, UseCases, DTOs
+  - Domain Layer: Voice, Synthesis, AudioConfig entities, TTSProviderPort
+  - Infrastructure Layer: TTSFactory, 5 Provider Adapters
+- 新增 `component-text-service.puml` - Text 服务完整组件架构 (Clean Architecture)
+  - Presentation Layer: API Router, Schemas
+  - Application Layer: ChatUseCase, CompletionUseCase, DTOs
+  - Domain Layer: Message, Session entities, Provider value object
+  - Infrastructure Layer: LLMGateway, ConfigAdapter, AuthAdapter
+- 更新 `component-media-services.puml` - 统一整合媒体服务组件图
+  - TTS Service: 添加完整的 Clean Architecture 分层
+  - Text Service: 添加完整的 Clean Architecture 分层
+  - Media Gen Service: 保持原有 DDD 结构
+- 更新 `context.puml` - 修正 Media Gen 服务端口 (3456 -> 8015)
 

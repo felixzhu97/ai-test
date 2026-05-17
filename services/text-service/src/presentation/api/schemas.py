@@ -31,7 +31,7 @@ class CompletionResponse(BaseModel):
 
 class ChatRequest(BaseModel):
     """Chat completion request schema."""
-    messages: List[Message] = Field(..., description="Conversation messages")
+    messages: List[Message] = Field(..., min_length=1, description="Conversation messages")
     system_prompt: Optional[str] = Field(None, description="Optional system prompt override")
     provider: Optional[str] = Field(None, description="LLM provider override")
     model: Optional[str] = Field(None, description="Model name override")

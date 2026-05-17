@@ -304,7 +304,7 @@ LOG_LEVEL=INFO
 
 | Service        | Port | Description                                      |
 | -------------- | ---- | ----------------------------------------------- |
-| Vision Service | 8002 | Image recognition (YOLO, BLIP, OCR), Image Gen, Video |
+| Vision Service | 8000 | Image recognition (YOLO, BLIP, OCR), Image Gen, Video |
 | AI Agents      | 8003 | Multi-agent orchestration                          |
 | RAG Service    | 8001 | Retrieval-augmented generation                     |
 | Text Service   | 8006 | Text generation (GPT, Claude, Ollama)             |
@@ -445,7 +445,7 @@ For local development with all services:
 
 ```bash
 # Terminal 1: Vision Service
-cd services/vision-service && source .venv/bin/activate && uvicorn src.main:app --reload --port 8002
+cd services/vision-service && source .venv/bin/activate && uvicorn src.main:app --reload --port 8000
 
 # Terminal 2: AI Agents Service
 cd services/ai_agents && source .venv/bin/activate && uvicorn main:app --reload --port 8003

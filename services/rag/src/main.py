@@ -1,9 +1,16 @@
 import os
+import sys
+from pathlib import Path
+
+# Ensure src directory is in the path for lazy imports
+_src_path = Path(__file__).parent.resolve()
+if str(_src_path) not in sys.path:
+    sys.path.insert(0, str(_src_path))
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from loguru import logger
-import sys
 
 from .api.documents import router as documents_router
 from .api.chat import router as chat_router

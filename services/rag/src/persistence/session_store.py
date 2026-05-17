@@ -9,7 +9,7 @@ from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
 from loguru import logger
-from ..config import get_settings
+from config import get_settings
 
 
 @dataclass

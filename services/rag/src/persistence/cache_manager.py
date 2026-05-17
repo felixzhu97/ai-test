@@ -10,7 +10,7 @@ from typing import Optional, Any
 from dataclasses import dataclass, field
 from loguru import logger
 from datetime import datetime, timedelta
-from ..config import get_settings
+from config import get_settings
 
 
 @dataclass

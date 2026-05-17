@@ -2,7 +2,7 @@
 
 ## System Architecture
 
-The AI-Test Platform is a full-stack application with a microservices-inspired architecture:
+The AI-Test Platform is a microservices-based AI service platform with five core services, each following Clean Architecture and DDD principles.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -16,193 +16,343 @@ The AI-Test Platform is a full-stack application with a microservices-inspired a
 │                   (Express.js Server)                           │
 └─────────────────────────────────────────────────────────────────┘
                                   │
-                    ┌─────────────┴─────────────┐
-                    ▼                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    AI Agents Service Layer                       │
-│               (Python + FastAPI + LangGraph)                     │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │                   Supervisor Agent                        │   │
-│  │         (Central Coordinator - Task Routing)              │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│    ┌───────┬───────┬───────┬───────┬───────┬───────┬───────┐   │
-│    ▼       ▼       ▼       ▼       ▼       ▼       ▼       ▼   │
-│ ┌─────┐┌─────┐┌─────┐┌─────┐┌─────┐┌─────┐┌─────┐┌─────┐   │
-│ │K8s  ││Vec  ││RAG  ││Pipe ││LLM  ││AIOps││Moni ││Model│   │
-│ └─────┘└─────┘└─────┘└─────┘└─────┘└─────┘└─────┘└─────┘   │
-└─────────────────────────────────────────────────────────────────┘
+              ┌───────────────────┼───────────────────┐
+              ▼                   ▼                   ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│  Text Service   │  │   RAG Service   │  │   TTS Service   │
+│   (Port 8006)   │  │   (Port 8001)   │  │   (Port 8005)   │
+│  ┌───────────┐  │  │  ┌───────────┐  │  │  ┌───────────┐  │
+│  │   Lang    │  │  │  │ Sentence │  │  │  │   Edge    │  │
+│  │   Chain   │  │  │  │Transformer│  │  │  │   TTS     │  │
+│  │   LLM     │  │  │  └───────────┘  │  │  └───────────┘  │
+│  └───────────┘  │  │  ┌───────────┐  │  │  ┌───────────┐  │
+│  ┌───────────┐  │  │  │  Qdrant   │  │  │  │  Azure    │  │
+│  │  Session  │  │  │  │  Vector   │  │  │  │  Google   │  │
+│  │  Repo     │  │  │  └───────────┘  │  │  │ ElevenLabs│  │
+│  └───────────┘  │  └─────────────────┘  │  └───────────┘  │
+└─────────────────┘                       └─────────────────┘
                                   │
-┌─────────────────────────────────────────────────────────────────┐
-│                    Vision Service Layer                         │
-│                 (FastAPI + Python + DDD)                        │
-│         ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐  │
-│         │     YOLO    │  │     BLIP    │  │    PaddleOCR    │  │
-│         └─────────────┘  └─────────────┘  └─────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                                  │
-┌─────────────────────────────────────────────────────────────────┐
-│                     RAG Service Layer                            │
-│                 (FastAPI + Python)                              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │   Document   │  │   Embedding  │  │      LLM Gateway     │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## AI Agents Multi-Agent System
-
-### Architecture
-
-The AI Agents service uses a **Supervisor-based routing pattern** where a central Supervisor Agent coordinates 12 specialized agents via keyword-based routing.
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Supervisor Agent                          │
-│            (Central Coordinator & Router)                    │
-│  ┌─────────────────────────────────────────────────────┐     │
-│  │  Intent Detection → Agent Selection → Delegation     │     │
-│  └─────────────────────────────────────────────────────┘     │
-└─────────────────────────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        ▼                     ▼                     ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│  K8s Agent    │   │  VectorDB     │   │  RAG Agent    │
-└───────────────┘   └───────────────┘   └───────────────┘
-        │                     │                     │
-        └─────────────────────┼─────────────────────┘
-                              ▼
-                    ┌───────────────┐
-                    │   Tools       │
-                    │ - HTTP Tools  │
-                    │ - System Tools│
-                    │ - 50+ Special │
-                    └───────────────┘
-```
-
-### Core Agents
-
-
-| Agent             | Responsibility                                      |
-| ----------------- | --------------------------------------------------- |
-| **Supervisor**    | Central coordinator, intent detection, task routing |
-| **K8s**           | Kubernetes management (pods, services, scaling)     |
-| **VectorDB**      | Vector embeddings and similarity search             |
-| **RAG**           | Document retrieval and knowledge base               |
-| **Pipeline**      | Workflow orchestration (DAG execution)              |
-| **LLMOps**        | LLM training, fine-tuning, evaluation               |
-| **AIOps**         | Anomaly detection, incident management              |
-| **Feature Store** | Feature engineering and materialization             |
-| **Monitoring**    | Metrics, logs, alerting                             |
-| **Model**         | ML model lifecycle management                       |
-| **TTS**           | Text-to-speech synthesis                            |
-| **Video**         | Video generation                                    |
-
-
-### Routing Configuration
-
-```
-用户输入 → Supervisor → 关键词匹配 → 专业智能体
-
-├── "vector", "embedding"     → VectorDB Agent
-├── "k8s", "pod", "cluster"   → K8s Agent
-├── "monitor", "metric"       → Monitoring Agent
-├── "model", "ml", "version"  → Model Agent
-├── "rag", "document"        → RAG Agent
-├── "pipeline", "dag"        → Pipeline Agent
-├── "aiops", "anomaly"        → AIOps Agent
-├── "tts", "speech"           → TTS Agent
-├── "video", "generate"       → Video Agent
+              ┌───────────────────┼───────────────────┐
+              ▼                   ▼                   ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│ Media Gen Svc   │  │ Vision Service  │  │   Other AI     │
+│   (Local SD)    │  │   (Port 8000)   │  │   Services     │
+│  ┌───────────┐  │  │  ┌───────────┐  │  │                │
+│  │ Stable    │  │  │  │  YOLO     │  │  │                │
+│  │ Diffusion │  │  │  │  BLIP     │  │  │                │
+│  │ Pipeline  │  │  │  │ PaddleOCR │  │  │                │
+│  └───────────┘  │  │  └───────────┘  │  │                │
+│  ┌───────────┐  │  │  ┌───────────┐  │  │                │
+│  │ Hugging   │  │  │  │  Kling    │  │  │                │
+│  │  Face     │  │  │  │  Runway   │  │  │                │
+│  └───────────┘  │  │  │  Pika     │  │  │                │
+└─────────────────┘  │  └───────────┘  │  └─────────────────┘
+                     └─────────────────┘
 ```
 
 ## Core Services
 
-### 1. Web Frontend (`apps/web`)
+### 1. Text Service (`services/text-service`)
 
-React 18 SPA with Apple-style aesthetics. Provides user interface for agent interactions, real-time chat with streaming responses, and multi-language i18n support.
+Text-to-Text LLM service with session management and multi-provider support.
 
-**Tech Stack:** React 18, Vite, TypeScript, Emotion CSS-in-JS
+**Tech Stack:** FastAPI, LangChain, Python 3.10+
 
-### 2. AI Agents Service (`services/ai_agents`)
-
-The core multi-agent orchestration service. Coordinates 12 specialized agents via Supervisor-based routing, with 58+ specialized tools and LangGraph workflows for complex operations.
-
-**Tech Stack:** FastAPI, Python 3.10+, LangChain/LangGraph, Ollama
-
-### 3. Vision Service (`services/vision-service`)
-
-Computer vision and image/video generation with **Domain-Driven Design (DDD)** architecture.
-
-#### DDD Architecture
+**Architecture (Clean Architecture + DDD):**
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Presentation Layer (API)                      │
-│         api/vision.py | api/image_gen.py | api/video.py          │
-└─────────────────────────────────────────────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Application Layer                              │
-│              use_cases/ | dtos/                                   │
-└─────────────────────────────────────────────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      Domain Layer                                │
-│        entities/ | value_objects/ | services/ | events/         │
-│              VideoTask (state machine), Image entities            │
-└─────────────────────────────────────────────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   Infrastructure Layer                           │
-│              providers/ | core/ (DI container)                   │
-│       Kling, Pika, Runway, Sora, Replicate, Mock providers       │
-└─────────────────────────────────────────────────────────────────┘
+Presentation Layer (API)
+├── routes.py          # FastAPI endpoints
+├── schemas.py         # Pydantic request/response models
+└── dependencies.py   # Dependency injection
+
+Application Layer
+├── use_cases/
+│   ├── chat_use_case.py        # Chat completion with session
+│   └── completion_use_case.py  # Simple text completion
+└── dto/
+    ├── chat_dto.py      # Chat DTOs
+    └── completion_dto.py
+
+Domain Layer (Pure Business Logic)
+├── entities/
+│   ├── message.py       # ChatMessage value object
+│   └── session.py       # Session aggregate root
+├── value_objects/
+│   └── provider.py      # LLMProvider enum
+└── repositories/
+    └── session_repository.py  # Repository interface
+
+Infrastructure Layer
+├── gateways/
+│   ├── langchain_llm_gateway.py  # LangChain implementation
+│   ├── llm_protocol.py           # Port interface
+│   └── config_adapter.py         # Configuration port
+└── repositories/
+    └── in_memory_session_repository.py
+
+Ports:
+├── LLMGatewayPort - LLM invocation interface
+└── SessionRepository - Session persistence interface
 ```
 
-**Responsibilities:** Image processing (YOLO, BLIP, PaddleOCR), image generation (Stable Diffusion), video generation (Sora, Pika, Runway, Kling), multi-provider abstraction.
+**Key Entities:**
+- `Session` - Aggregate root managing conversation history with max_history trimming
+- `ChatMessage` - Immutable value object for messages
+- `LLMProvider` - Enum (OPENAI, ANTHROPIC, OLLAMA)
 
-### 4. RAG Service (`services/rag`)
+**API Endpoints (Port 8006):**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/text/health` | GET | Health check |
+| `/api/text/providers` | GET | List available LLM providers |
+| `/api/text/models` | GET | List available models |
+| `/api/text/complete` | POST | Generate text completion |
+| `/api/text/complete/stream` | POST | Stream completion (SSE) |
+| `/api/text/chat` | POST | Chat completion with session |
+| `/api/text/chat/stream` | POST | Stream chat (SSE) |
+| `/api/text/session/{id}` | GET/DELETE | Session management |
 
-Retrieval-Augmented Generation with Qdrant vector store, LLM-powered Q&A, and multi-layer caching.
+---
 
-**Tech Stack:** FastAPI, Qdrant, LangChain, SQLite (sessions)
+### 2. TTS Service (`services/tts-service`)
 
-### 5. Text Service (`services/text-service`)
+Text-to-Speech synthesis with multi-provider abstraction and DDD architecture.
 
-Text-to-Text LLM service supporting OpenAI GPT, Anthropic Claude, and Ollama with streaming responses.
+**Tech Stack:** FastAPI, edge-tts, azure-cognitiveservices-speech, Python 3.10+
 
-### 6. TTS Service (`services/tts-service`)
-
-Text-to-Speech with multi-provider support (Azure, Google, ElevenLabs, Coqui).
-
-### 7. Media Gen Service (`services/media-gen`)
-
-Local Text-to-Image generation using Stable Diffusion with Diffusers library.
-
-## Data Flow
+**Architecture:**
 
 ```
-User Input → React App → HTTP POST → AI Agents Service (8003)
-                                          │
-                                          ▼
-                                    Supervisor Agent
-                                          │
-                                          ▼
-                              Intent Detection & Routing
-                                          │
-                    ┌─────────────────────┼─────────────────────┐
-                    ▼                     ▼                     ▼
-              K8s Agent              VectorDB Agent        Monitoring Agent
-                    │                     │                     │
-                    ▼                     ▼                     ▼
-              K8s Tools             Vector Tools          Monitoring Tools
-                                          │
-                                          ▼
-                              Streaming Response (SSE)
+Domain Layer
+├── entities/
+│   ├── voice.py           # Voice value object (frozen dataclass)
+│   ├── synthesis.py       # SynthesisRequest, SynthesisResult
+│   └── audio_config.py    # AudioConfig value object
+├── services/
+│   └── synthesis_service.py  # Business logic (text normalization, SSML)
+└── ports/
+    └── tts_provider.py    # TTSProviderPort interface
+
+Application Layer
+├── services/
+│   └── tts_application_service.py  # Facade orchestrating use cases
+├── use_cases/
+│   ├── synthesize_speech.py   # Batch synthesis
+│   ├── stream_speech.py       # Streaming synthesis
+│   ├── list_voices.py         # Voice listing
+│   └── get_health.py         # Health check
+└── dtos/
+    └── synthesis_dto.py       # Request/Response DTOs
+
+Infrastructure Layer
+└── adapters/
+    ├── edge_tts_adapter.py      # Microsoft Edge TTS (default)
+    ├── azure_tts_adapter.py     # Azure Cognitive Services
+    ├── google_tts_adapter.py    # Google Cloud TTS
+    ├── elevenlabs_tts_adapter.py # ElevenLabs
+    ├── coqui_tts_adapter.py     # Coqui TTS (local)
+    └── base_adapter.py          # Base adapter with common logic
+
+Presentation Layer
+├── routers/
+│   ├── tts.py              # API endpoints
+│   └── dependencies.py     # DI setup
 ```
+
+**Key Entities:**
+- `Voice` - Immutable voice descriptor with language/gender filtering
+- `SynthesisRequest` - Domain entity for synthesis parameters
+- `SynthesisResult` - Immutable result with audio data
+- `AudioConfig` - Immutable audio configuration (sample_rate, bit_rate, channels)
+
+**Domain Service:**
+- `SynthesisService` - Text normalization, SSML generation, speed/pitch transformation
+
+**API Endpoints (Port 8005):**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/tts/health` | GET | Health check |
+| `/tts/synthesize` | POST | Synthesize speech (returns audio) |
+| `/tts/stream` | POST | Stream speech |
+| `/tts/voices` | GET | List available voices |
+| `/tts/providers` | GET | List TTS providers |
+
+---
+
+### 3. RAG Service (`services/rag`)
+
+Retrieval-Augmented Generation with Qdrant vector store and multi-layer caching.
+
+**Tech Stack:** FastAPI, Qdrant, LangChain, Sentence Transformers, Python 3.10+
+
+**Architecture:**
+
+```
+Application Layer
+├── document_service.py      # Document upload, ingestion, retrieval
+├── rag_chain_service.py     # RAG chain orchestration
+└── dependencies.py          # Dependency injection
+
+Domain Layer
+└── ports/
+    ├── document_repository.py  # Document persistence interface
+    ├── vector_store.py         # Vector storage interface
+    ├── embedding.py            # Embedding generation interface
+    ├── llm.py                  # LLM interface
+    └── cache.py                # Cache interface
+
+Infrastructure Layer
+└── adapters/
+    ├── qdrant_vector_store.py       # Qdrant implementation
+    ├── sentence_transformer_embedding.py  # Sentence-BERT embeddings
+    ├── langchain_llm_gateway.py      # LLM with LangChain
+    └── cache_adapter.py             # Redis/file cache
+
+Presentation Layer
+├── chat.py      # Chat endpoints
+└── documents.py # Document management endpoints
+```
+
+**Domain Ports:**
+- `VectorStorePort` - Search, upsert, delete operations
+- `EmbeddingPort` - Query/document embedding generation
+- `LLMGatewayPort` - LLM generation with streaming
+- `CachePort` - Multi-layer caching (memory + disk)
+- `DocumentRepositoryPort` - Document metadata storage
+
+**Key Components:**
+- `DocumentService` - Upload, ingest, chunk text, upsert vectors
+- `RAGChainService` - Query embedding, similarity search, context building, LLM generation
+
+**API Endpoints (Port 8001):**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/documents/ingest` | POST | Upload and ingest document |
+| `/documents/list` | GET | List documents |
+| `/documents/{id}` | GET/DELETE | Get/delete document |
+| `/chat` | POST | RAG chat |
+| `/chat/stream` | POST | Stream chat response |
+
+---
+
+### 4. Media Gen Service (`services/media-gen`)
+
+Local text-to-image generation using Stable Diffusion.
+
+**Tech Stack:** FastAPI, Diffusers, PyTorch, Python 3.10+
+
+**Architecture:**
+
+```
+Domain Layer
+├── entities/
+│   └── generated_image.py    # GeneratedImage entity
+├── value_objects/
+│   └── generation_params.py  # GenerationParams (validated)
+├── ports/
+│   └── image_encoder_port.py # ImageEncoderPort interface
+└── repositories/
+    └── model_cache_repository.py  # ModelCacheRepository interface
+
+Application Layer
+└── use_cases/
+    └── generate_image_use_case.py  # Image generation logic
+
+Infrastructure Layer
+├── adapters/
+│   ├── stable_diffusion_adapter.py  # SD pipeline with caching
+│   └── image_encoder_adapter.py    # Base64 encoding
+└── config/
+    ├── device_selector.py     # CUDA/CPU selection
+    └── huggingface_config.py  # HuggingFace settings
+
+Presentation Layer
+└── routes/
+    ├── image_routes.py   # API endpoints
+    └── health_routes.py  # Health check
+```
+
+**Key Entities:**
+- `GeneratedImage` - Immutable image result with metadata
+- `GenerationParams` - Validated generation parameters (steps, guidance_scale, width, height, seed)
+
+**Key Ports:**
+- `ModelCacheRepository` - Pipeline caching with lazy loading
+- `ImageEncoderPort` - Image encoding interface
+
+**API Endpoints:**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/image/generate` | POST | Generate images |
+
+---
+
+### 5. Vision Service (`services/vision-service`)
+
+Computer vision service with DDD architecture for image analysis and video generation.
+
+**Tech Stack:** FastAPI, YOLO, BLIP, PaddleOCR, Kling, Runway, Pika, Python 3.10+
+
+**Architecture:**
+
+```
+Domain Layer
+├── entities/
+│   ├── image.py            # ImageGeneration entity
+│   └── video_task.py       # VideoTask state machine
+├── services/
+│   ├── video_generation_service.py
+│   ├── image_generation_service.py
+│   └── image_generation_rules.py  # Prompt validation
+├── value_objects/
+│   └── common.py           # Dimensions, etc.
+└── ports/
+    ├── image_analysis.py   # YOLO, OCR interfaces
+    ├── image_providers.py  # Image gen providers
+    └── video_providers.py # Video gen providers
+
+Application Layer
+└── use_cases/
+    ├── generate_image.py    # Image generation
+    ├── generate_video.py   # Video generation
+    ├── analyze_image.py    # Image analysis
+    └── check_video_status.py
+
+Infrastructure Layer
+├── providers/             # External AI providers
+│   ├── kling.py, runway.py, pika.py, sora.py  # Video
+│   ├── replicate.py       # Image
+│   └── mock.py            # Testing
+└── models/               # Local ML models
+    ├── yolo_detector.py
+    ├── blip_captioner.py
+    ├── paddle_ocr.py
+    └── easy_ocr.py
+
+Presentation Layer
+└── api/
+    ├── vision.py      # Detection, OCR endpoints
+    ├── image_gen.py   # Image generation
+    └── video.py       # Video generation
+```
+
+**Key Entities:**
+- `ImageGeneration` - Image generation with validation
+- `VideoTask` - Video generation state machine (PENDING, PROCESSING, COMPLETED, FAILED)
+
+**API Endpoints (Port 8000):**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/vision/detect` | POST | Object detection (YOLO) |
+| `/vision/ocr` | POST | Text recognition |
+| `/vision/caption` | POST | Image captioning |
+| `/image-gen/generate` | POST | Generate image |
+| `/video/generate` | POST | Generate video |
+| `/video/status/{id}` | GET | Check video status |
+
+---
 
 ## Directory Structure
 
@@ -210,7 +360,7 @@ User Input → React App → HTTP POST → AI Agents Service (8003)
 ai-test/
 ├── apps/
 │   ├── web/                    # React frontend
-│   │   ├── src/components/     # UI components (panels, agents, AIHub)
+│   │   ├── src/components/     # UI components
 │   │   ├── src/i18n/          # Internationalization
 │   │   └── src/theme.ts        # Theme system
 │   └── server/                 # Express.js server
@@ -218,60 +368,143 @@ ai-test/
 │   ├── config/                 # Shared TypeScript config
 │   └── utils/                  # Shared utilities
 ├── services/
-│   ├── ai_agents/              # AI Agents (Supervisor + 12 agents)
-│   │   ├── agents/             # Specialized agents
-│   │   ├── tools/              # 58+ tools (http, system, k8s, etc.)
-│   │   └── graphs/             # LangGraph workflows
-│   ├── vision-service/         # Vision AI (DDD Architecture)
-│   │   ├── src/api/            # Presentation Layer
-│   │   ├── src/application/    # Application Layer (use_cases, dtos)
-│   │   ├── src/domain/         # Domain Layer (entities, services)
-│   │   └── src/providers/      # Infrastructure (AI providers)
-│   ├── rag/                    # RAG service
-│   │   └── src/persistence/    # Cache, sessions, metadata
-│   ├── text-service/           # Text LLM service
+│   ├── text-service/           # Text LLM Service
+│   │   ├── src/
+│   │   │   ├── application/use_cases/
+│   │   │   ├── domain/{entities,value_objects,repositories}/
+│   │   │   ├── infrastructure/{gateways,repositories}/
+│   │   │   └── presentation/api/
+│   │   └── tests/
 │   ├── tts-service/             # Text-to-Speech
-│   └── media-gen/               # Stable Diffusion
+│   │   ├── src/
+│   │   │   ├── domain/{entities,services,ports}/
+│   │   │   ├── application/{services,use_cases,dtos}/
+│   │   │   ├── infrastructure/adapters/
+│   │   │   └── presentation/routers/
+│   │   └── tests/
+│   ├── rag/                    # RAG Service
+│   │   ├── src/
+│   │   │   ├── application/
+│   │   │   ├── domain/ports/
+│   │   │   └── infrastructure/adapters/
+│   │   └── tests/
+│   ├── media-gen/               # Media Generation
+│   │   ├── src/
+│   │   │   ├── domain/{entities,value_objects,ports,repositories}/
+│   │   │   ├── application/use_cases/
+│   │   │   ├── infrastructure/{adapters,config}/
+│   │   │   └── presentation/routes/
+│   │   └── tests/
+│   └── vision-service/         # Vision AI
+│       ├── src/
+│       │   ├── domain/{entities,services,ports}/
+│       │   ├── application/use_cases/
+│       │   ├── infrastructure/{providers,models}/
+│       │   └── api/
+│       └── tests/
 └── docs/
+    ├── ARCHITECTURE.md
+    ├── API.md
+    └── c4/
 ```
 
-## API Reference
+---
 
-See [API.md](API.md) for detailed API documentation.
+## Data Flow
 
-### Quick Overview
+### Text Service Flow
 
+```
+Client Request
+      │
+      ▼
+API Route (routes.py)
+      │
+      ▼
+Use Case (ChatUseCase)
+      │
+      ├──► SessionRepository ──► InMemorySessionRepository
+      │
+      ▼
+LLMGatewayPort ──► LangChainLLMGateway ──► OpenAI/Anthropic/Ollama
+      │
+      ▼
+Session Update (add_assistant_message)
+      │
+      ▼
+Response DTO ──► API Response
+```
 
-| Service   | Port | Key Endpoints                                              |
-| --------- | ---- | ---------------------------------------------------------- |
-| AI Agents | 8003 | `/api/agents/supervisor/invoke`                            |
-| Vision    | 8000 | `/vision/detect`, `/image-gen/generate`, `/video/generate` |
-| RAG       | 8001 | `/documents/ingest`, `/chat`                               |
-| TTS       | 8005 | `/tts/synthesize`, `/tts/voices`                           |
-| Text      | 8006 | `/api/text/complete`, `/api/text/chat`                     |
+### RAG Service Flow
 
+```
+User Query
+      │
+      ▼
+EmbeddingPort ──► SentenceTransformerEmbedding ──► Vector Store
+      │                                              │
+      ▼                                              ▼
+VectorStorePort ──► QdrantVectorStore ──► Similarity Search
+      │
+      ▼
+Context Building (search results → context string)
+      │
+      ▼
+LLMGatewayPort ──► LangChainLLM ──► LLM Generation
+      │
+      ▼
+CachePort ──► Response Caching
+      │
+      ▼
+Chat Response + Source Documents
+```
+
+---
+
+## API Reference Summary
+
+| Service | Port | Key Endpoints |
+|---------|------|----------------|
+| Text | 8006 | `/api/text/chat`, `/api/text/complete`, `/api/text/chat/stream` |
+| TTS | 8005 | `/tts/synthesize`, `/tts/stream`, `/tts/voices` |
+| RAG | 8001 | `/chat`, `/documents/ingest` |
+| Media Gen | 8002 | `/image/generate` |
+| Vision | 8000 | `/vision/detect`, `/image-gen/generate`, `/video/generate` |
+
+---
 
 ## Configuration
 
 ```env
-# AI Agents
+# Text Service
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:7b
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+
+# TTS Service
+TTS_PROVIDER=edge
+
+# RAG Service
+QDRANT_HOST=localhost
+QDRANT_PORT=6333
+QDRANT_COLLECTION=documents
+
+# Media Gen Service
+DEVICE=cuda                    # 'cuda' or 'cpu'
+SD_MODEL=runwayml/stable-diffusion-v1-5
+HF_TOKEN=hf_...
 
 # Vision Service
-DEVICE=cuda                    # 'cuda' or 'cpu'
-MAX_IMAGE_SIZE=10485760        # 10MB
+VISION_DEVICE=cuda
 ```
 
-## Deployment
-
-- **Docker Compose** (Recommended): GPU variant for production, CPU variant for dev
-- **Kubernetes**: GPU node pools for AI services
-- **Cloud**: AWS ECS/EKS, GCP Cloud Run, Azure Container Instances
+---
 
 ## C4 Model
 
-Detailed C4 architecture diagrams are maintained separately. See:
+Detailed C4 architecture diagrams are maintained in `docs/c4/`:
 
-- [C4 Model Documentation](path/to/c4-model)
-
+- `c4-context.puml` - System context
+- `c4-container.puml` - Container-level architecture
+- `c4-component-media-services.puml` - Media services component detail

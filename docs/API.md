@@ -6,839 +6,12 @@ REST API documentation for the AI-Test Platform services.
 
 ## Table of Contents
 
-- [AI Agents Service (Port 8003)](#ai-agents-service-port-8003)
-- [Vision Service (Port 8000)](#vision-service-port-8000)
 - [Text Service (Port 8006)](#text-service-port-8006)
 - [TTS Service (Port 8005)](#tts-service-port-8005)
-- [RAG Service (Port 8001)](#rag-service-port-8001)
-
----
-
-## AI Agents Service (Port 8003)
-
-Base URL: `http://localhost:8003`
-
-### Endpoints Overview
-
-
-| Method | Endpoint                          | Description                                  |
-| ------ | --------------------------------- | -------------------------------------------- |
-| `GET`  | `/health`                         | Health check                                 |
-| `GET`  | `/agents`                         | List all available agents                    |
-| `POST` | `/api/agents/supervisor/invoke`   | Invoke supervisor agent (main chat endpoint) |
-| `POST` | `/api/agents/{agent_name}/invoke` | Invoke a specific agent directly             |
-
-
----
-
-### Health Check
-
-#### `GET /health`
-
-Check if the AI Agents service is running.
-
-**Response:**
-
-```json
-{
-  "status": "ok",
-  "service": "ai_agents",
-  "agents_initialized": true,
-  "available_agents": ["vector", "kubernetes", "monitoring", "model", "rag", "llmops", "feature_store", "pipeline", "aiops"]
-}
-```
-
-**Response Fields:**
-
-
-| Field                | Type    | Description                     |
-| -------------------- | ------- | ------------------------------- |
-| `status`             | string  | Always `"ok"` if healthy        |
-| `service`            | string  | Service identifier              |
-| `agents_initialized` | boolean | Whether agents are loaded       |
-| `available_agents`   | array   | List of initialized agent names |
-
-
----
-
-### List Agents
-
-#### `GET /agents`
-
-Get information about all available agents.
-
-**Response:**
-
-```json
-{
-  "agents": [
-    {
-      "name": "vector",
-      "description": "Handles vector database operations",
-      "status": "online"
-    },
-    {
-      "name": "kubernetes",
-      "description": "Kubernetes cluster management",
-      "status": "online"
-    },
-    {
-      "name": "monitoring",
-      "description": "Handles observability, metrics, logs, and alerting",
-      "status": "online"
-    },
-    {
-      "name": "model",
-      "description": "Manages ML model lifecycle, deployment, and versioning",
-      "status": "online"
-    },
-    {
-      "name": "rag",
-      "description": "Document retrieval and knowledge base management",
-      "status": "online"
-    },
-    {
-      "name": "llmops",
-      "description": "ML model lifecycle management",
-      "status": "online"
-    },
-    {
-      "name": "feature_store",
-      "description": "Feature engineering and management",
-      "status": "online"
-    },
-    {
-      "name": "pipeline",
-      "description": "ML/DevOps workflow orchestration",
-      "status": "online"
-    },
-    {
-      "name": "aiops",
-      "description": "Intelligent operations and anomaly detection",
-      "status": "online"
-    }
-  ]
-}
-```
-
----
-
-### Chat with Supervisor (Main Endpoint)
-
-#### `POST /api/agents/supervisor/invoke`
-
-Invoke the Supervisor agent to handle user queries. This is the main chat endpoint that routes to appropriate specialized agents.
-
-**Request:**
-
-```json
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "Show me the status of my kubernetes pods"
-    }
-  ]
-}
-```
-
-**Request Fields:**
-
-
-| Field                | Type   | Required | Description                           |
-| -------------------- | ------ | -------- | ------------------------------------- |
-| `messages`           | array  | Yes      | List of conversation messages         |
-| `messages[].role`    | string | Yes      | Message role (`user`, `assistant`)    |
-| `messages[].content` | string | Yes      | Message content                       |
-| `agent_name`         | string | No       | Specific agent to route to (optional) |
-
-
-**Response:**
-
-Server-Sent Events (SSE) streaming response:
-
-```
-event: message
-data: Starting analysis...
-
-event: message
-data: Routing to: kubernetes
-...
-
-event: message
-data: Your kubernetes cluster has 3 pods running:
-- nginx-deployment-abc123 (Running)
-- redis-xyz789 (Running)
-- api-gateway-def456 (Running)
-
-event: tool_output
-data: Agent 'kubernetes' completed
-
-data: [DONE]
-```
-
-**Event Types:**
-
-
-| Event         | Description                  |
-| ------------- | ---------------------------- |
-| `message`     | Text response from the agent |
-| `tool_call`   | Tool invocation details      |
-| `tool_output` | Result from tool execution   |
-| `error`       | Error message                |
-| `[DONE]`      | End of stream marker         |
-
-
----
-
-### Invoke Specific Agent
-
-#### `POST /api/agents/{agent_name}/invoke`
-
-Invoke a specific agent directly without going through the Supervisor.
-
-**Path Parameters:**
-
-
-| Parameter    | Type   | Description                                             |
-| ------------ | ------ | ------------------------------------------------------- |
-| `agent_name` | string | Agent name (e.g., `vector`, `kubernetes`, `monitoring`) |
-
-
-**Request:**
-
-```json
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "Search for similar documents about machine learning"
-    }
-  ]
-}
-```
-
-**Response:**
-
-Server-Sent Events (SSE) streaming response (same format as supervisor endpoint).
-
-**Available Agents:**
-
-
-| Agent Name      | Description                             |
-| --------------- | --------------------------------------- |
-| `vector`        | Vector database operations              |
-| `kubernetes`    | Kubernetes cluster management           |
-| `monitoring`    | Metrics, logs, and alerting             |
-| `model`         | ML model lifecycle management           |
-| `rag`           | Document retrieval and knowledge base   |
-| `llmops`        | LLM operations and experiments          |
-| `feature_store` | Feature engineering                     |
-| `pipeline`      | Workflow orchestration                  |
-| `aiops`         | Anomaly detection and incident response |
-
-
----
-
-### Example: Using cURL
-
-```bash
-# Health check
-curl http://localhost:8003/health
-
-# List agents
-curl http://localhost:8003/agents
-
-# Chat with Supervisor
-curl -X POST http://localhost:8003/api/agents/supervisor/invoke \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "What pods are running in my cluster?"}
-    ]
-  }'
-
-# Query specific agent
-curl -X POST http://localhost:8003/api/agents/vector/invoke \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "Show me recent embeddings"}
-    ]
-  }'
-```
-
----
-
-## Vision Service (Port 8000)
-
-Base URL: `http://localhost:8000`
-
-Vision Service 采用 DDD（领域驱动设计）架构，支持图像处理、图像生成和视频生成。
-
-### Architecture
-
-```
-src/
-├── api/                    # API Layer (FastAPI Routes)
-│   ├── vision.py          # 图像分析端点
-│   ├── image_gen.py       # 图像生成端点
-│   └── video.py           # 视频生成端点
-├── application/           # Application Layer (Use Cases)
-│   ├── use_cases/
-│   │   ├── generate_video.py
-│   │   └── check_video_status.py
-│   └── dtos/              # Data Transfer Objects
-│       ├── vision_dtos.py
-│       ├── image_dtos.py
-│       └── video_dtos.py
-├── domain/                 # Domain Layer (Entities & Business Logic)
-│   ├── entities/
-│   │   ├── image.py
-│   │   └── video_task.py  # VideoTask, VideoTaskStatus
-│   ├── value_objects/
-│   │   ├── dimensions.py
-│   │   └── video_config.py
-│   └── services/
-│       ├── image_generation_service.py
-│       └── video_generation_service.py
-└── providers/             # Infrastructure Layer (External APIs)
-    ├── base.py
-    ├── interfaces.py
-    ├── mock.py
-    ├── kling.py
-    ├── pika.py
-    ├── replicate.py
-    ├── runway.py
-    └── sora.py
-```
-
-### Endpoints Overview
-
-
-| Method | Endpoint                   | Description                      |
-| ------ | -------------------------- | -------------------------------- |
-| `GET`  | `/health`                  | Health check                     |
-| `GET`  | `/`                        | Service info                     |
-| `POST` | `/vision/detect`           | Object detection (YOLO)          |
-| `POST` | `/vision/caption`          | Image captioning (BLIP)          |
-| `POST` | `/vision/ocr`              | Text extraction (PaddleOCR)      |
-| `POST` | `/vision/analyze`          | Combined analysis                |
-| `POST` | `/image-gen/generate`      | Text-to-image (Stable Diffusion) |
-| `POST` | `/image-gen/variation`     | Image variation                  |
-| `POST` | `/image-gen/upscale`       | Image upscaling                  |
-| `POST` | `/video/generate`          | Text/image to video              |
-| `POST` | `/video/generate/advanced` | Advanced video generation        |
-| `GET`  | `/video/status/{task_id}`  | Check video task status          |
-
-
----
-
-### Health Check
-
-#### `GET /health`
-
-Check if the service is running.
-
-**Response:**
-
-```json
-{
-  "status": "ok"
-}
-```
-
----
-
-### Service Info
-
-#### `GET /`
-
-Get service information and available endpoints.
-
-**Response:**
-
-```json
-{
-  "name": "AI Vision Service",
-  "version": "0.1.0",
-  "endpoints": {
-    "health": "/health",
-    "detect": "/vision/detect",
-    "caption": "/vision/caption",
-    "ocr": "/vision/ocr",
-    "analyze": "/vision/analyze"
-  }
-}
-```
-
----
-
-### Object Detection
-
-#### `POST /vision/detect`
-
-Detect objects in an image using YOLO.
-
-**Request:**
-
-- **Content-Type:** `multipart/form-data`
-- **Body:**
-  - `file` (required): Image file (JPEG, PNG, etc.)
-  - `conf` (optional): Confidence threshold (default: 0.25)
-
-**Response:**
-
-```json
-{
-  "task": "detect_objects",
-  "model": "yolo11n.pt",
-  "detections": [
-    {
-      "class_name": "person",
-      "confidence": 0.92,
-      "bbox": [120, 50, 400, 600]
-    },
-    {
-      "class_name": "car",
-      "confidence": 0.85,
-      "bbox": [500, 300, 700, 500]
-    }
-  ],
-  "image_width": 800,
-  "image_height": 600,
-  "processing_time_ms": 45.2
-}
-```
-
-**Response Fields:**
-
-
-| Field                     | Type   | Description                     |
-| ------------------------- | ------ | ------------------------------- |
-| `task`                    | string | Always `"detect_objects"`       |
-| `model`                   | string | YOLO model name                 |
-| `detections`              | array  | List of detected objects        |
-| `detections[].class_name` | string | Object class label              |
-| `detections[].confidence` | float  | Confidence score (0-1)          |
-| `detections[].bbox`       | array  | Bounding box [x1, y1, x2, y2]   |
-| `image_width`             | int    | Image width in pixels           |
-| `image_height`            | int    | Image height in pixels          |
-| `processing_time_ms`      | float  | Processing time in milliseconds |
-
-
-**Example:**
-
-```bash
-curl -X POST http://localhost:8000/vision/detect \
-  -F "file=@image.jpg" \
-  -F "conf=0.5"
-```
-
----
-
-### Image Captioning
-
-#### `POST /vision/caption`
-
-Generate a natural language description of an image using BLIP.
-
-**Request:**
-
-- **Content-Type:** `multipart/form-data`
-- **Body:**
-  - `file` (required): Image file (JPEG, PNG, etc.)
-
-**Response:**
-
-```json
-{
-  "task": "caption_image",
-  "model": "Salesforce/blip-image-captioning-large",
-  "caption": "A person hiking in the mountains during sunset",
-  "processing_time_ms": 230.5
-}
-```
-
-**Response Fields:**
-
-
-| Field                | Type   | Description                     |
-| -------------------- | ------ | ------------------------------- |
-| `task`               | string | Always `"caption_image"`        |
-| `model`              | string | BLIP model name                 |
-| `caption`            | string | Generated caption               |
-| `processing_time_ms` | float  | Processing time in milliseconds |
-
-
-**Example:**
-
-```bash
-curl -X POST http://localhost:8000/vision/caption \
-  -F "file=@image.jpg"
-```
-
----
-
-### OCR (Text Extraction)
-
-#### `POST /vision/ocr`
-
-Extract text from an image using PaddleOCR.
-
-**Request:**
-
-- **Content-Type:** `multipart/form-data`
-- **Body:**
-  - `file` (required): Image file (JPEG, PNG, etc.)
-
-**Response:**
-
-```json
-{
-  "task": "extract_text",
-  "model": "PaddleOCR",
-  "results": [
-    {
-      "text": "Hello World",
-      "confidence": 0.95,
-      "bbox": [[10, 10], [100, 10], [100, 30], [10, 30]]
-    },
-    {
-      "text": "Document Text",
-      "confidence": 0.92,
-      "bbox": [[10, 50], [200, 50], [200, 70], [10, 70]]
-    }
-  ],
-  "full_text": "Hello World\nDocument Text",
-  "processing_time_ms": 85.3
-}
-```
-
-**Response Fields:**
-
-
-| Field                  | Type   | Description                                       |
-| ---------------------- | ------ | ------------------------------------------------- |
-| `task`                 | string | Always `"extract_text"`                           |
-| `model`                | string | Always `"PaddleOCR"`                              |
-| `results`              | array  | List of detected text blocks                      |
-| `results[].text`       | string | Extracted text                                    |
-| `results[].confidence` | float  | Confidence score (0-1)                            |
-| `results[].bbox`       | array  | Bounding box [[x1,y1], [x2,y2], [x3,y3], [x4,y4]] |
-| `full_text`            | string | All extracted text joined with newlines           |
-| `processing_time_ms`   | float  | Processing time in milliseconds                   |
-
-
-**Example:**
-
-```bash
-curl -X POST http://localhost:8000/vision/ocr \
-  -F "file=@document.jpg"
-```
-
----
-
-### Combined Analysis
-
-#### `POST /vision/analyze`
-
-Run multiple AI tasks on a single image.
-
-**Request:**
-
-- **Content-Type:** `multipart/form-data`
-- **Body:**
-  - `file` (required): Image file (JPEG, PNG, etc.)
-  - `task` (required): Task type (query parameter)
-
-**Task Types:**
-
-
-| Task             | Description      | Response Keys                  |
-| ---------------- | ---------------- | ------------------------------ |
-| `caption_image`  | Generate caption | `caption`                      |
-| `detect_objects` | Detect objects   | `detections`                   |
-| `extract_text`   | Extract text     | `results`                      |
-| `analyze_image`  | Run all tasks    | `caption`, `detections`, `ocr` |
-
-
-**Example - Full Analysis:**
-
-```bash
-curl -X POST "http://localhost:8000/vision/analyze?task=analyze_image" \
-  -F "file=@photo.jpg"
-```
-
-**Response:**
-
-```json
-{
-  "caption": {
-    "model": "Salesforce/blip-image-captioning-large",
-    "caption": "A person reading a book",
-    "processing_time_ms": 245.3
-  },
-  "detections": {
-    "model": "yolo11n.pt",
-    "detections": [...],
-    "processing_time_ms": 48.1
-  },
-  "ocr": {
-    "model": "PaddleOCR",
-    "results": [...],
-    "full_text": "Book title here",
-    "processing_time_ms": 85.3
-  }
-}
-```
-
----
-
-### Video Generation
-
-Vision Service 支持基于 DDD 架构的视频生成服务，支持多种提供商（Mock、Kling、Replicate、Pika、Runway、Sora）。
-
-#### Video Generation Flow
-
-```
-┌──────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  POST        │     │  Application     │     │  Domain         │
-│  /video/     │ ──► │  UseCase         │ ──► │  VideoTask      │
-│  generate    │     │  GenerateVideo   │     │  Entity         │
-└──────────────┘     └──────────────────┘     └─────────────────┘
-                                                      │
-                     ┌──────────────────┐            │
-                     │  GET             │     ┌───────▼───────┐
-                     │  /video/status/  │ ◄── │  Provider     │
-                     │  {task_id}       │     │  (Infrastructure)
-                     └──────────────────┘     └───────────────┘
-```
-
-#### `POST /video/generate`
-
-提交视频生成任务。
-
-**Request:**
-
-```json
-{
-  "prompt": "A serene lake at sunset with ducks swimming",
-  "negative_prompt": "blurry, low quality",
-  "duration": 5,
-  "aspect_ratio": "16:9",
-  "fps": 24,
-  "quality": "high",
-  "model": "kling-v1-5",
-  "callback_url": "https://example.com/webhook"
-}
-```
-
-**Request Fields:**
-
-
-| Field             | Type   | Required | Default    | Description                |
-| ----------------- | ------ | -------- | ---------- | -------------------------- |
-| `prompt`          | string | Yes      | -          | 视频描述文本                     |
-| `negative_prompt` | string | No       | null       | 避免的元素                      |
-| `duration`        | int    | No       | 5          | 视频时长（5-10秒）                |
-| `aspect_ratio`    | enum   | No       | 16:9       | 宽高比（16:9, 9:16, 1:1, 4:3）  |
-| `fps`             | int    | No       | 24         | 帧率（24-60）                  |
-| `quality`         | enum   | No       | high       | 质量（standard, high）         |
-| `model`           | enum   | No       | kling-v1-5 | 模型（kling-v1-0, kling-v1-5） |
-| `callback_url`    | string | No       | null       | 异步通知 Webhook               |
-
-
-**Response:**
-
-```json
-{
-  "task_id": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "pending",
-  "message": "Video generation started",
-  "created_at": "2026-05-17T09:45:00"
-}
-```
-
-**Response Fields:**
-
-
-| Field        | Type   | Description    |
-| ------------ | ------ | -------------- |
-| `task_id`    | string | 唯一任务标识符        |
-| `status`     | string | 任务状态（pending）  |
-| `message`    | string | 状态消息           |
-| `created_at` | string | 创建时间（ISO 8601） |
-
-
----
-
-#### `POST /video/generate/advanced`
-
-高级视频生成，支持更多参数。
-
-**Request:**
-
-```json
-{
-  "prompt": "A robot dancing in a futuristic city",
-  "style": "cinematic",
-  "cfg_scale": 7.5,
-  "motion_intensity": 1.2,
-  "seed": 42,
-  "duration": 10
-}
-```
-
-**Advanced Request Fields:**
-
-
-| Field              | Type  | Default | Description                                     |
-| ------------------ | ----- | ------- | ----------------------------------------------- |
-| `style`            | enum  | none    | 风格预设（realistic, animation, cinematic, abstract） |
-| `seed`             | int   | null    | 随机种子，用于可复现性                                     |
-| `cfg_scale`        | float | 7.5     | 提示词遵循强度（1-20）                                   |
-| `motion_intensity` | float | 1.0     | 运动强度（0.1-2.0）                                   |
-
-
----
-
-#### `GET /video/status/{task_id}`
-
-查询视频生成任务状态。
-
-**Path Parameters:**
-
-
-| Parameter | Type   | Description |
-| --------- | ------ | ----------- |
-| `task_id` | string | 任务标识符       |
-
-
-**Response (Pending):**
-
-```json
-{
-  "task_id": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "pending",
-  "video_url": null,
-  "thumbnail_url": null,
-  "error": null,
-  "processing_time_seconds": null
-}
-```
-
-**Response (Processing):**
-
-```json
-{
-  "task_id": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "processing",
-  "video_url": null,
-  "thumbnail_url": null,
-  "error": null,
-  "processing_time_seconds": null
-}
-```
-
-**Response (Completed):**
-
-```json
-{
-  "task_id": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "completed",
-  "video_url": "https://cdn.example.com/videos/abc123.mp4",
-  "thumbnail_url": "https://cdn.example.com/thumbnails/abc123.jpg",
-  "error": null,
-  "processing_time_seconds": 45.5
-}
-```
-
-**Response (Failed):**
-
-```json
-{
-  "task_id": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "failed",
-  "video_url": null,
-  "thumbnail_url": null,
-  "error": "API rate limit exceeded",
-  "processing_time_seconds": null
-}
-```
-
-**Task Status Values:**
-
-
-| Status       | Description |
-| ------------ | ----------- |
-| `pending`    | 任务已创建，等待处理  |
-| `processing` | 正在生成视频      |
-| `completed`  | 视频生成完成      |
-| `failed`     | 生成失败        |
-
-
----
-
-#### Video Generation Examples
-
-**cURL:**
-
-```bash
-# Generate video
-curl -X POST http://localhost:8000/video/generate \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "A cat playing piano in moonlight", "duration": 5}'
-
-# Advanced generation
-curl -X POST http://localhost:8000/video/generate/advanced \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "A sunset over the ocean", "style": "cinematic", "duration": 10}'
-
-# Check status
-curl http://localhost:8000/video/status/{task_id}
-```
-
-**Python:**
-
-```python
-import httpx
-import asyncio
-
-async def generate_video():
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        # Create task
-        response = await client.post(
-            "http://localhost:8000/video/generate",
-            json={
-                "prompt": "A serene mountain landscape with flowing water",
-                "duration": 5,
-                "aspect_ratio": "16:9",
-                "quality": "high"
-            }
-        )
-        task_data = response.json()
-        task_id = task_data["task_id"]
-        print(f"Task created: {task_id}")
-
-        # Poll status
-        for _ in range(30):
-            await asyncio.sleep(2)
-            status_response = await client.get(
-                f"http://localhost:8000/video/status/{task_id}"
-            )
-            status = status_response.json()
-            print(f"Status: {status['status']}")
-
-            if status["status"] in ("completed", "failed"):
-                if status["video_url"]:
-                    print(f"Video URL: {status['video_url']}")
-                else:
-                    print(f"Error: {status['error']}")
-                break
-
-asyncio.run(generate_video())
-```
+- [RAG Service (Port 8010)](#rag-service-port-8010)
+- [Media Generation Service (Port 8015)](#media-generation-service-port-8015)
+- [Error Responses](#error-responses)
+- [Environment Variables](#environment-variables)
 
 ---
 
@@ -850,19 +23,18 @@ Text-to-Text LLM service with multi-provider support (OpenAI, Anthropic, Ollama)
 
 ### Endpoints Overview
 
-
-| Method   | Endpoint                         | Description            |
-| -------- | -------------------------------- | ---------------------- |
-| `GET`    | `/api/text/health`               | Health check           |
-| `GET`    | `/api/text/providers`            | List LLM providers     |
-| `GET`    | `/api/text/models`               | List available models  |
-| `POST`   | `/api/text/complete`             | Text completion        |
-| `POST`   | `/api/text/complete/stream`      | Stream completion      |
-| `POST`   | `/api/text/chat`                 | Chat completion        |
-| `POST`   | `/api/text/chat/stream`          | Stream chat completion |
-| `GET`    | `/api/text/session/{session_id}` | Get session history    |
-| `DELETE` | `/api/text/session/{session_id}` | Clear session          |
-
+| Method   | Endpoint                    | Description            |
+| -------- | --------------------------- | ---------------------- |
+| `GET`    | `/api/text/health`          | Health check           |
+| `GET`    | `/api/text/providers`       | List LLM providers     |
+| `GET`    | `/api/text/models`          | List available models |
+| `POST`   | `/api/text/complete`        | Text completion        |
+| `POST`   | `/api/text/complete/stream` | Stream completion      |
+| `POST`   | `/api/text/chat`            | Chat completion        |
+| `POST`   | `/api/text/chat/stream`     | Stream chat completion |
+| `GET`    | `/api/text/session/{id}`    | Get session history    |
+| `DELETE` | `/api/text/session/{id}`    | Clear session          |
+| `POST`   | `/api/text/reset`           | Reset LLM cache        |
 
 ---
 
@@ -877,7 +49,7 @@ Text-to-Text LLM service with multi-provider support (OpenAI, Anthropic, Ollama)
   "status": "ok",
   "provider": "openai",
   "model": "gpt-4o-mini",
-  "version": "0.1.0"
+  "version": "0.2.0"
 }
 ```
 
@@ -894,14 +66,14 @@ Text-to-Text LLM service with multi-provider support (OpenAI, Anthropic, Ollama)
   {
     "name": "openai",
     "display_name": "OpenAI",
-    "models": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
+    "models": ["gpt-4o", "gpt-4o-mini"],
     "status": "available"
   },
   {
     "name": "anthropic",
     "display_name": "Anthropic Claude",
-    "models": ["claude-sonnet-4-20250514", "claude-opus-4-20250514"],
-    "status": "available"
+    "models": ["claude-sonnet-4-20250514"],
+    "status": "configured"
   },
   {
     "name": "ollama",
@@ -922,7 +94,7 @@ Text-to-Text LLM service with multi-provider support (OpenAI, Anthropic, Ollama)
 
 ```json
 {
-  "prompt": "Explain quantum computing in simple terms:",
+  "prompt": "Explain quantum computing:",
   "system_prompt": "You are a helpful assistant.",
   "provider": "openai",
   "model": "gpt-4o-mini",
@@ -967,7 +139,7 @@ Text-to-Text LLM service with multi-provider support (OpenAI, Anthropic, Ollama)
 
 ```json
 {
-  "text": "I'm doing well, thank you for asking! How can I help you today?",
+  "text": "I'm doing well, thank you!",
   "provider": "openai",
   "model": "gpt-4o-mini",
   "session_id": "session-uuid",
@@ -978,23 +150,22 @@ Text-to-Text LLM service with multi-provider support (OpenAI, Anthropic, Ollama)
 
 ---
 
-## TTS Service (Port 8013)
+## TTS Service (Port 8005)
 
-Base URL: `http://localhost:8013`
+Base URL: `http://localhost:8005`
 
-Text-to-Speech service with multiple provider support (Azure, Google, ElevenLabs, Coqui).
+Text-to-Speech service with multiple provider support (Edge, Azure, Google, ElevenLabs, Coqui).
 
 ### Endpoints Overview
 
-
-| Method | Endpoint          | Description           |
-| ------ | ----------------- | --------------------- |
-| `GET`  | `/tts/health`     | Health check          |
-| `GET`  | `/tts/voices`     | List available voices |
-| `GET`  | `/tts/providers`  | List TTS providers    |
-| `POST` | `/tts/synthesize` | Synthesize speech     |
-| `POST` | `/tts/stream`     | Stream speech         |
-
+| Method | Endpoint          | Description             |
+| ------ | ----------------- | ----------------------- |
+| `GET`  | `/tts/health`     | Health check            |
+| `GET`  | `/tts/voices`     | List available voices  |
+| `GET`  | `/tts/providers`   | List TTS providers      |
+| `GET`  | `/tts/provider`   | Get current provider    |
+| `POST` | `/tts/synthesize` | Synthesize speech       |
+| `POST` | `/tts/stream`     | Stream speech           |
 
 ---
 
@@ -1007,9 +178,10 @@ Text-to-Speech service with multiple provider support (Azure, Google, ElevenLabs
 ```json
 {
   "status": "ok",
-  "tts_engine": "edge",
-  "ai_agents_connected": false,
-  "version": "0.1.0"
+  "provider": "edge",
+  "provider_status": "available",
+  "version": "0.2.0",
+  "components": {}
 }
 ```
 
@@ -1019,16 +191,20 @@ Text-to-Speech service with multiple provider support (Azure, Google, ElevenLabs
 
 #### `GET /tts/voices`
 
+**Query Parameters:**
+
+| Parameter | Type   | Description          |
+| --------- | ------ | -------------------- |
+| `language` | string | Filter by language   |
+
 **Response:**
 
 ```json
-{
-  "voices": [
-    {"voice_id": "en-US-JennyNeural", "name": "Jenny", "language": "en-US"},
-    {"voice_id": "en-GB-SoniaNeural", "name": "Sonia", "language": "en-GB"},
-    {"voice_id": "zh-CN-XiaoxiaoNeural", "name": "Xiaoxiao", "language": "zh-CN"}
-  ]
-}
+[
+  {"voice_id": "en-US-JennyNeural", "name": "Jenny", "language": "en-US"},
+  {"voice_id": "en-GB-SoniaNeural", "name": "Sonia", "language": "en-GB"},
+  {"voice_id": "zh-CN-XiaoxiaoNeural", "name": "Xiaoxiao", "language": "zh-CN"}
+]
 ```
 
 ---
@@ -1050,37 +226,32 @@ Text-to-Speech service with multiple provider support (Azure, Google, ElevenLabs
 }
 ```
 
-**Response:** Audio binary (mp3/wav/ogg)
+**Response:** Audio binary (mp3/wav/ogg/flac)
 
 ---
 
-## RAG Service (Port 8001)
+## RAG Service (Port 8010)
 
-Base URL: `http://localhost:8001`
+Base URL: `http://localhost:8010`
 
-Production RAG service with Qdrant vector store for document retrieval and knowledge base management.
+Retrieval-augmented generation with Qdrant vector store.
 
 ### Endpoints Overview
-
 
 | Method   | Endpoint                     | Description                   |
 | -------- | ---------------------------- | ----------------------------- |
 | `GET`    | `/health`                    | Health check                  |
-| `GET`    | `/`                          | Service info                  |
-| `POST`   | `/documents/upload`          | Upload and ingest a document  |
-| `POST`   | `/documents/ingest-url`      | Ingest document from URL      |
-| `GET`    | `/documents/`                | List all documents            |
-| `GET`    | `/documents/{doc_id}/stats`  | Get document statistics       |
-| `DELETE` | `/documents/{doc_id}`        | Delete a document             |
-| `POST`   | `/chat/`                     | Chat with RAG (non-streaming) |
-| `POST`   | `/chat/stream`               | Chat with RAG (streaming)     |
-| `GET`    | `/chat/history/{session_id}` | Get chat history              |
-| `DELETE` | `/chat/history/{session_id}` | Clear chat history            |
-| `POST`   | `/chat/ingest-text`          | Ingest raw text directly      |
-| `POST`   | `/reload`                    | Reload configuration          |
-| `GET`    | `/cache/stats`               | Get cache statistics          |
-| `POST`   | `/cache/clear`               | Clear all caches              |
-
+| `POST`   | `/documents/upload`          | Upload document               |
+| `POST`   | `/documents/ingest-url`      | Ingest from URL               |
+| `GET`    | `/documents/`               | List documents                |
+| `GET`    | `/documents/database`        | List from vector store        |
+| `GET`    | `/documents/{id}/stats`     | Document statistics           |
+| `DELETE` | `/documents/{id}`           | Delete document               |
+| `POST`   | `/chat/`                    | Chat query                    |
+| `POST`   | `/chat/stream`              | Streaming chat                |
+| `GET`    | `/chat/history/{session_id}`| Chat history                  |
+| `DELETE` | `/chat/history/{session_id}`| Clear history                |
+| `POST`   | `/chat/ingest-text`         | Ingest raw text               |
 
 ---
 
@@ -1088,97 +259,29 @@ Production RAG service with Qdrant vector store for document retrieval and knowl
 
 #### `GET /health`
 
-Check service health and connectivity status.
-
 **Response:**
 
 ```json
 {
   "status": "ok",
   "qdrant_connected": true,
-  "embedding_model": "nomic-embed-text",
-  "llm_provider": "ollama"
-}
-```
-
-**Response Fields:**
-
-
-| Field              | Type    | Description                                           |
-| ------------------ | ------- | ----------------------------------------------------- |
-| `status`           | string  | `"ok"` if healthy, `"degraded"` if Qdrant unavailable |
-| `qdrant_connected` | boolean | Whether Qdrant vector store is connected              |
-| `embedding_model`  | string  | Name of the embedding model                           |
-| `llm_provider`     | string  | LLM provider (`ollama`, `openai`, etc.)               |
-
-
----
-
-### Service Info
-
-#### `GET /`
-
-Get service information and available endpoints.
-
-**Response:**
-
-```json
-{
-  "name": "RAG Service",
-  "version": "0.2.0",
-  "description": "Production RAG service with Qdrant vector store",
-  "endpoints": {
-    "health": "/health",
-    "documents": {
-      "upload": "POST /documents/upload",
-      "ingest_url": "POST /documents/ingest-url",
-      "list": "GET /documents/",
-      "list_from_db": "GET /documents/database",
-      "stats": "GET /documents/{doc_id}/stats",
-      "delete": "DELETE /documents/{doc_id}"
-    },
-    "chat": {
-      "query": "POST /chat/",
-      "stream": "POST /chat/stream",
-      "history": "GET /chat/history/{session_id}",
-      "ingest_text": "POST /chat/ingest-text"
-    }
-  },
-  "config": {
-    "llm_provider": "ollama",
-    "llm_model": "qwen2.5:7b",
-    "embedding_model": "nomic-embed-text"
-  }
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "llm_provider": "deepseek"
 }
 ```
 
 ---
 
-### Document Management
+### Upload Document
 
-#### Upload Document
+#### `POST /documents/upload`
 
-##### `POST /documents/upload`
+**Request:** `multipart/form-data`
 
-Upload and ingest a document file (PDF, Markdown, Text).
-
-**Request:**
-
-- **Content-Type:** `multipart/form-data`
-- **Body:**
-  - `file` (required): Document file (PDF, MD, TXT)
-  - `title` (optional): Document title (defaults to filename)
-  - `collection` (optional): Collection name
-
-**Supported File Types:**
-
-
-| Extension          | Source Type |
-| ------------------ | ----------- |
-| `.md`, `.markdown` | Markdown    |
-| `.pdf`             | PDF         |
-| `.txt`, `.text`    | Text        |
-
+| Field     | Type   | Required | Description      |
+| --------- | ------ | -------- | ---------------- |
+| `file`    | file   | Yes      | Document file    |
+| `title`   | string | No       | Document title   |
 
 **Response:**
 
@@ -1191,572 +294,129 @@ Upload and ingest a document file (PDF, Markdown, Text).
 }
 ```
 
-**Response Fields:**
-
-
-| Field      | Type   | Description                   |
-| ---------- | ------ | ----------------------------- |
-| `doc_id`   | string | Unique document identifier    |
-| `filename` | string | Original filename             |
-| `chunks`   | int    | Number of text chunks created |
-| `status`   | string | `"success"` or `"failed"`     |
-
-
-**Example:**
-
-```bash
-curl -X POST http://localhost:8001/documents/upload \
-  -F "file=@document.pdf" \
-  -F "title=My Document"
-```
-
----
-
-#### Ingest URL
-
-##### `POST /documents/ingest-url`
-
-Ingest a document from a web URL.
-
-**Query Parameters:**
-
-
-| Parameter | Type   | Required | Description    |
-| --------- | ------ | -------- | -------------- |
-| `url`     | string | Yes      | URL to ingest  |
-| `title`   | string | No       | Document title |
-
-
-**Response:**
-
-```json
-{
-  "doc_id": "550e8400-e29b-41d4-a716-446655440001",
-  "filename": "https://example.com/article",
-  "chunks": 8,
-  "status": "success"
-}
-```
-
-**Example:**
-
-```bash
-curl -X POST "http://localhost:8001/documents/ingest-url?url=https://example.com/doc&title=Article"
-```
-
----
-
-#### List Documents
-
-##### `GET /documents/`
-
-List all uploaded documents.
-
-**Response:**
-
-```json
-{
-  "documents": [
-    {
-      "doc_id": "550e8400-e29b-41d4-a716-446655440000",
-      "filename": "document.pdf",
-      "total_chunks": 15,
-      "source": "pdf",
-      "uploaded_at": "2024-01-15T10:30:00Z"
-    }
-  ],
-  "total": 1
-}
-```
-
-**Response Fields:**
-
-
-| Field                      | Type   | Description                                    |
-| -------------------------- | ------ | ---------------------------------------------- |
-| `documents`                | array  | List of document records                       |
-| `documents[].doc_id`       | string | Document identifier                            |
-| `documents[].filename`     | string | Document filename                              |
-| `documents[].total_chunks` | int    | Number of chunks                               |
-| `documents[].source`       | string | Source type (`pdf`, `markdown`, `web`, `text`) |
-| `documents[].uploaded_at`  | string | Upload timestamp                               |
-| `total`                    | int    | Total number of documents                      |
-
-
----
-
-#### Document Statistics
-
-##### `GET /documents/{doc_id}/stats`
-
-Get detailed statistics for a specific document.
-
-**Path Parameters:**
-
-
-| Parameter | Type   | Description         |
-| --------- | ------ | ------------------- |
-| `doc_id`  | string | Document identifier |
-
-
-**Response:**
-
-```json
-{
-  "doc_id": "550e8400-e29b-41d4-a716-446655440000",
-  "filename": "document.pdf",
-  "title": "My Document",
-  "total_chunks": 15,
-  "source": "pdf",
-  "status": "completed",
-  "created_at": "2024-01-15T10:30:00Z",
-  "indexed_at": "2024-01-15T10:30:05Z",
-  "file_size": 245678,
-  "vector_stats": {
-    "total_vectors": 15,
-    "collection_name": "rag_collection"
-  }
-}
-```
-
----
-
-#### Delete Document
-
-##### `DELETE /documents/{doc_id}`
-
-Delete a document and all its associated vectors.
-
-**Path Parameters:**
-
-
-| Parameter | Type   | Description         |
-| --------- | ------ | ------------------- |
-| `doc_id`  | string | Document identifier |
-
-
-**Response:**
-
-```json
-{
-  "status": "success",
-  "message": "Document 550e8400-e29b-41d4-a716-446655440000 deleted"
-}
-```
-
-**Example:**
-
-```bash
-curl -X DELETE http://localhost:8001/documents/550e8400-e29b-41d4-a716-446655440000
-```
-
 ---
 
 ### Chat with RAG
 
-#### Non-Streaming Chat
-
-##### `POST /chat/`
-
-Query the knowledge base and get a response with sources.
+#### `POST /chat/`
 
 **Request:**
 
 ```json
 {
-  "query": "What is the main topic of the documents?",
+  "query": "What is the main topic?",
   "session_id": "optional-session-id",
-  "doc_ids": ["doc-id-1", "doc-id-2"],
+  "doc_ids": ["doc-id-1"],
   "top_k": 5,
   "temperature": 0.7
 }
 ```
 
-**Request Fields:**
-
-
-| Field         | Type   | Required | Default        | Description                                    |
-| ------------- | ------ | -------- | -------------- | ---------------------------------------------- |
-| `query`       | string | Yes      | -              | User question                                  |
-| `session_id`  | string | No       | Auto-generated | Session identifier for conversation continuity |
-| `doc_ids`     | array  | No       | All docs       | Filter to specific documents                   |
-| `top_k`       | int    | No       | 5              | Number of context chunks to retrieve (1-20)    |
-| `temperature` | float  | No       | 0.7            | LLM temperature (0-2)                          |
-
-
 **Response:**
 
 ```json
 {
-  "answer": "Based on the documents, the main topic is artificial intelligence...",
+  "answer": "Based on the documents...",
   "sources": [
     {
-      "text": "Document excerpt text...",
+      "text": "Document excerpt...",
       "score": 0.95,
-      "metadata": {
-        "source": "pdf",
-        "filename": "document.pdf",
-        "doc_id": "550e8400-e29b-41d4-a716-446655440000"
-      }
+      "metadata": {"source": "pdf", "filename": "doc.pdf"}
     }
   ],
-  "session_id": "session-uuid-here",
-  "model": "qwen2.5:7b",
+  "session_id": "session-uuid",
+  "model": "deepseek-chat",
   "processing_time_ms": 1234.5
 }
 ```
 
-**Response Fields:**
-
-
-| Field                | Type   | Description              |
-| -------------------- | ------ | ------------------------ |
-| `answer`             | string | Generated response       |
-| `sources`            | array  | Retrieved context chunks |
-| `sources[].text`     | string | Source text excerpt      |
-| `sources[].score`    | float  | Relevance score (0-1)    |
-| `sources[].metadata` | object | Source metadata          |
-| `session_id`         | string | Session identifier       |
-| `model`              | string | LLM model used           |
-| `processing_time_ms` | float  | Processing time          |
-
-
 ---
 
-#### Streaming Chat
+### Streaming Chat
 
-##### `POST /chat/stream`
+#### `POST /chat/stream`
 
-Query the knowledge base with streaming response.
+**Request:** Same as `/chat/`
 
-**Request:** Same as non-streaming chat.
-
-**Response:** Server-Sent Events (SSE) stream.
+**Response:** Server-Sent Events (SSE)
 
 ```
 data: Based
+
 data:  on
+
 data:  the
-data:  documents
-data: , the
-data:  main
-...
 
 data: [DONE]
 
-event: sources
-data: [{"text": "...", "score": 0.95, "metadata": {...}}]
-
 event: meta
-data: {"processing_time_ms": 1234.5, "model": "qwen2.5:7b"}
-```
-
-**Event Types:**
-
-
-| Event            | Description                |
-| ---------------- | -------------------------- |
-| `data: ...`      | Response text chunks       |
-| `data: [DONE]`   | End of text stream         |
-| `event: sources` | Retrieved source documents |
-| `event: meta`    | Response metadata          |
-
-
-**Response Headers:**
-
-
-| Header         | Description        |
-| -------------- | ------------------ |
-| `X-Session-Id` | Session identifier |
-
-
-**Example:**
-
-```bash
-curl -X POST http://localhost:8001/chat/stream \
-  -H "Content-Type: application/json" \
-  -d '{"query": "What is machine learning?"}' \
-  -N
+data: {"model": "deepseek-chat"}
 ```
 
 ---
 
-#### Get Chat History
+## Media Generation Service (Port 8015)
 
-##### `GET /chat/history/{session_id}`
+Base URL: `http://localhost:8015`
 
-Retrieve chat history for a session.
+Text-to-Image generation using Stable Diffusion.
 
-**Path Parameters:**
+### Endpoints Overview
 
+| Method | Endpoint           | Description            |
+| ------ | ------------------ | ---------------------- |
+| `GET`  | `/health`          | Health check           |
+| `POST` | `/image/generate`  | Generate image         |
+| `POST` | `/cache/clear`     | Clear model cache      |
 
-| Parameter    | Type   | Description        |
-| ------------ | ------ | ------------------ |
-| `session_id` | string | Session identifier |
+---
 
+### Health Check
+
+#### `GET /health`
 
 **Response:**
 
 ```json
 {
-  "session_id": "session-uuid-here",
-  "messages": [
-    {
-      "role": "user",
-      "content": "What is AI?",
-      "timestamp": 1705312200.123,
-      "sources": []
-    },
-    {
-      "role": "assistant",
-      "content": "AI stands for Artificial Intelligence...",
-      "timestamp": 1705312205.456,
-      "sources": [
-        {
-          "text": "Source excerpt...",
-          "score": 0.92,
-          "metadata": {}
-        }
-      ]
-    }
-  ],
-  "total": 2
+  "status": "ok",
+  "model": "runwayml/stable-diffusion-v1-5",
+  "device": "mps",
+  "cuda_available": false,
+  "mps_available": true,
+  "cuda_device_count": 0,
+  "pipeline_loaded": true
 }
 ```
 
 ---
 
-#### Clear Chat History
+### Generate Image
 
-##### `DELETE /chat/history/{session_id}`
+#### `POST /image/generate`
 
-Delete all messages for a session.
+**Request:**
 
-**Path Parameters:**
-
-
-| Parameter    | Type   | Description        |
-| ------------ | ------ | ------------------ |
-| `session_id` | string | Session identifier |
-
+```json
+{
+  "prompt": "A serene mountain landscape at sunset",
+  "negative_prompt": "blurry, low quality, distorted",
+  "width": 512,
+  "height": 512,
+  "num_inference_steps": 50,
+  "guidance_scale": 7.5,
+  "seed": null
+}
+```
 
 **Response:**
 
 ```json
 {
-  "status": "success",
-  "message": "History for session session-uuid-here cleared"
+  "images": ["data:image/png;base64,..."],
+  "seed": 12345,
+  "processing_time_ms": 5234.5
 }
-```
-
----
-
-#### Ingest Text Directly
-
-##### `POST /chat/ingest-text`
-
-Ingest raw text as a document without uploading a file.
-
-**Request Parameters:**
-
-
-| Parameter | Type   | Required | Description                               |
-| --------- | ------ | -------- | ----------------------------------------- |
-| `text`    | string | Yes      | Text content to ingest                    |
-| `title`   | string | No       | Document title (default: "Text Document") |
-| `doc_id`  | string | No       | Custom document ID                        |
-
-
-**Response:**
-
-```json
-{
-  "doc_id": "550e8400-e29b-41d4-a716-446655440002",
-  "title": "My Notes",
-  "chunks": 3,
-  "status": "success"
-}
-```
-
-**Example:**
-
-```bash
-curl -X POST "http://localhost:8001/chat/ingest-text?title=MyNotes" \
-  -H "Content-Type: application/json" \
-  -d '{"text": "This is the text content to ingest into the knowledge base."}'
-```
-
----
-
-### Configuration Endpoints
-
-#### Reload Configuration
-
-##### `POST /reload`
-
-Reload configuration from environment variables.
-
-**Response:**
-
-```json
-{
-  "status": "success",
-  "config": {
-    "llm_provider": "ollama",
-    "llm_model": "qwen2.5:7b",
-    "embedding_model": "nomic-embed-text"
-  }
-}
-```
-
----
-
-#### Cache Statistics
-
-##### `GET /cache/stats`
-
-Get statistics for all caches and stores.
-
-**Response:**
-
-```json
-{
-  "cache": {
-    "hits": 150,
-    "misses": 50,
-    "hit_rate": 0.75
-  },
-  "documents": {
-    "total": 10,
-    "by_source": {
-      "pdf": 5,
-      "markdown": 3,
-      "web": 2
-    }
-  },
-  "sessions": {
-    "total": 25,
-    "total_messages": 150
-  }
-}
-```
-
----
-
-#### Clear Cache
-
-##### `POST /cache/clear`
-
-Clear all caches.
-
-**Response:**
-
-```json
-{
-  "status": "success",
-  "message": "Cache cleared"
-}
-```
-
----
-
-### Python Examples
-
-```python
-import requests
-
-# Upload a document
-with open("document.pdf", "rb") as f:
-    response = requests.post(
-        "http://localhost:8001/documents/upload",
-        files={"file": f},
-        data={"title": "My Document"}
-    )
-print(response.json())
-
-# List documents
-response = requests.get("http://localhost:8001/documents/")
-print(response.json())
-
-# Chat query
-response = requests.post(
-    "http://localhost:8001/chat/",
-    json={
-        "query": "What is the main topic?",
-        "top_k": 5
-    }
-)
-print(response.json())
-
-# Streaming chat
-with requests.post(
-    "http://localhost:8001/chat/stream",
-    json={"query": "Explain this topic"},
-    stream=True
-) as r:
-    for line in r.iter_lines():
-        if line:
-            print(line.decode())
-
-# Get chat history
-response = requests.get("http://localhost:8001/chat/history/session-123")
-print(response.json())
-
-# Ingest text directly
-response = requests.post(
-    "http://localhost:8001/chat/ingest-text",
-    params={"title": "My Notes"},
-    json={"text": "Content to ingest..."}
-)
-print(response.json())
-```
-
----
-
-### JavaScript Examples
-
-```javascript
-// Upload document
-const formData = new FormData();
-formData.append("file", fileStream);
-formData.append("title", "Document Title");
-
-const uploadRes = await fetch("http://localhost:8001/documents/upload", {
-  method: "POST",
-  body: formData,
-});
-const uploadData = await uploadRes.json();
-
-// Chat query
-const chatRes = await fetch("http://localhost:8001/chat/", {
-  method: "POST",
-  headers: {"Content-Type": "application/json"},
-  body: JSON.stringify({
-    query: "What is the content about?",
-    top_k: 5
-  }),
-});
-const chatData = await chatRes.json();
-
-// Streaming chat
-const streamRes = await fetch("http://localhost:8001/chat/stream", {
-  method: "POST",
-  headers: {"Content-Type": "application/json"},
-  body: JSON.stringify({ query: "Explain this" }),
-});
-
-const reader = streamRes.body.getReader();
-const decoder = new TextDecoder();
-
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  console.log(decoder.decode(value));
-}
-
-// Get history
-const historyRes = await fetch("http://localhost:8001/chat/history/session-123");
-const history = await historyRes.json();
 ```
 
 ---
@@ -1765,91 +425,75 @@ const history = await historyRes.json();
 
 ### 400 Bad Request
 
-Invalid image or file too large.
-
 ```json
 {
-  "detail": "Image too large (max 10MB)"
+  "detail": "Invalid request parameters"
 }
 ```
 
+### 404 Not Found
+
 ```json
 {
-  "detail": "Invalid image file"
+  "detail": "Resource not found"
 }
 ```
 
 ### 422 Unprocessable Entity
 
-Missing required fields.
-
 ```json
 {
   "detail": [
-    {
-      "loc": ["body", "file"],
-      "msg": "Field required",
-      "type": "missing"
-    }
+    {"loc": ["body", "field"], "msg": "Field required", "type": "missing"}
   ]
 }
 ```
 
 ### 500 Internal Server Error
 
-Model or processing error.
-
 ```json
 {
-  "detail": "Model loading failed"
+  "detail": "Internal server error"
 }
 ```
-
-### 503 Service Unavailable
-
-AI Agents service not initialized.
-
-```json
-{
-  "detail": "Agents not initialized"
-}
-```
-
----
-
-## Rate Limits
-
-### Vision Service
-
-- **Concurrent Requests:** 4 (configurable via `MAX_CONCURRENT_REQUESTS`)
-- **Max File Size:** 10MB (configurable via `MAX_IMAGE_SIZE`)
 
 ---
 
 ## Environment Variables
 
-### AI Agents Service
+### Text Service
 
+| Variable           | Default | Description          |
+| ------------------ | ------- | -------------------- |
+| `LLM_PROVIDER`     | openai  | Default LLM provider |
+| `LLM_MODEL`        | gpt-4o-mini | Default model     |
+| `OPENAI_API_KEY`   | -       | OpenAI API key       |
+| `ANTHROPIC_API_KEY`| -       | Anthropic API key    |
+| `OLLAMA_BASE_URL`  | localhost:11434 | Ollama URL    |
 
-| Variable          | Default                  | Description       |
-| ----------------- | ------------------------ | ----------------- |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
-| `OLLAMA_MODEL`    | `qwen2.5:7b`             | Ollama model name |
+### TTS Service
 
+| Variable        | Default | Description        |
+| --------------- | ------- | ------------------ |
+| `TTS_PROVIDER`  | edge    | Default TTS provider |
 
-### Vision Service
+### RAG Service
 
+| Variable          | Default          | Description           |
+| ----------------- | ---------------- | --------------------- |
+| `PORT`            | 8010             | Service port          |
+| `QDRANT_HOST`     | localhost        | Qdrant server host    |
+| `QDRANT_PORT`     | 6333            | Qdrant server port    |
+| `EMBEDDING_MODEL` | all-MiniLM-L6-v2 | Embedding model      |
+| `LLM_PROVIDER`    | deepseek        | RAG LLM provider      |
 
-| Variable                  | Default                                  | Description                          |
-| ------------------------- | ---------------------------------------- | ------------------------------------ |
-| `DEVICE`                  | `cuda`                                   | Computation device (`cuda` or `cpu`) |
-| `YOLO_MODEL`              | `yolo11n.pt`                             | YOLO model path                      |
-| `BLIP_MODEL`              | `Salesforce/blip-image-captioning-large` | BLIP model name                      |
-| `OCR_LANG`                | `ch`                                     | PaddleOCR language                   |
-| `MAX_IMAGE_SIZE`          | `10485760`                               | Max file size in bytes (10MB)        |
-| `MODEL_CACHE_DIR`         | `./models`                               | Model cache directory                |
-| `MAX_CONCURRENT_REQUESTS` | `4`                                      | Max concurrent requests              |
+### Media Generation Service
 
+| Variable    | Default                      | Description         |
+| ----------- | ---------------------------- | ------------------- |
+| `PORT`      | 8015                         | Service port        |
+| `SD_MODEL`  | runwayml/stable-diffusion-v1-5 | Stable Diffusion model |
+| `HF_TOKEN`  | -                            | HuggingFace token   |
 
 ---
 
@@ -1860,105 +504,60 @@ AI Agents service not initialized.
 ```python
 import requests
 
-# AI Agents - Chat with Supervisor
+# Text Service
 response = requests.post(
-    "http://localhost:8003/api/agents/supervisor/invoke",
+    "http://localhost:8006/api/text/chat",
     json={"messages": [{"role": "user", "content": "Hello"}]}
 )
-print(response.text)
-
-# Vision - Object Detection
-with open("image.jpg", "rb") as f:
-    response = requests.post(
-        "http://localhost:8000/vision/detect",
-        files={"file": f}
-    )
 print(response.json())
-```
 
-### JavaScript with `fetch`
+# TTS Service
+response = requests.post(
+    "http://localhost:8005/tts/synthesize",
+    json={"text": "Hello", "voice": "en-US-JennyNeural"}
+)
+with open("output.mp3", "wb") as f:
+    f.write(response.content)
 
-```javascript
-// AI Agents - Chat
-const response = await fetch("http://localhost:8003/api/agents/supervisor/invoke", {
-  method: "POST",
-  headers: {"Content-Type": "application/json"},
-  body: JSON.stringify({
-    messages: [{role: "user", content: "Show me kubernetes pods"}]
-  })
-});
+# RAG Service
+response = requests.post(
+    "http://localhost:8010/chat/",
+    json={"query": "What is AI?"}
+)
+print(response.json())
 
-// Vision - Caption
-const formData = new FormData();
-formData.append("file", imageFile);
-
-const visionResponse = await fetch("http://localhost:8000/vision/caption", {
-  method: "POST",
-  body: formData,
-});
-
-const data = await visionResponse.json();
-console.log(data.caption);
+# Media Generation
+response = requests.post(
+    "http://localhost:8015/image/generate",
+    json={"prompt": "A cat"}
+)
+print(response.json())
 ```
 
 ### cURL
 
 ```bash
-# AI Agents
-curl http://localhost:8003/health
-curl http://localhost:8003/agents
+# Text Service
+curl -X POST http://localhost:8006/api/text/chat \
+  -H "Content-Type: application/json" \
+  -d '{"messages": [{"role": "user", "content": "Hello"}]}'
 
-# Vision
-curl -X POST http://localhost:8000/vision/caption \
-  -F "file=@photo.jpg"
+# TTS Service
+curl -X POST http://localhost:8005/tts/synthesize \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hello", "voice": "en-US-JennyNeural"}'
 
-curl -X POST http://localhost:8000/vision/detect \
-  -F "file=@photo.jpg" \
-  -F "conf=0.5"
+# RAG - Upload
+curl -X POST http://localhost:8010/documents/upload \
+  -F "file=@document.pdf"
 
-# RAG - Upload document
-curl -X POST http://localhost:8001/documents/upload \
-  -F "file=@document.pdf" \
-  -F "title=My Document"
-
-# RAG - Ingest from URL
-curl -X POST "http://localhost:8001/documents/ingest-url?url=https://example.com/doc"
-
-# RAG - List documents
-curl http://localhost:8001/documents/
-
-# RAG - Delete document
-curl -X DELETE http://localhost:8001/documents/{doc_id}
-
-# RAG - Chat query
-curl -X POST http://localhost:8001/chat/ \
+# RAG - Chat
+curl -X POST http://localhost:8010/chat/ \
   -H "Content-Type: application/json" \
   -d '{"query": "What is machine learning?"}'
 
-# RAG - Streaming chat
-curl -X POST http://localhost:8001/chat/stream \
+# Media Generation
+curl -X POST http://localhost:8015/image/generate \
   -H "Content-Type: application/json" \
-  -d '{"query": "Explain this topic"}'
-
-# RAG - Get chat history
-curl http://localhost:8001/chat/history/{session_id}
-
-# RAG - Ingest text directly
-curl -X POST "http://localhost:8001/chat/ingest-text?title=MyNotes" \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Content to ingest"}'
-
-# RAG - Clear chat history
-curl -X DELETE http://localhost:8001/chat/history/{session_id}
-
-# RAG - Cache stats
-curl http://localhost:8001/cache/stats
-
-# RAG - Reload config
-curl -X POST http://localhost:8001/reload
+  -d '{"prompt": "A beautiful sunset"}'
 ```
-
-```
-
-```
-

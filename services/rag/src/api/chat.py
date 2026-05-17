@@ -1,25 +1,83 @@
-import uuid
-import time
-import json
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
-from typing import Optional
-from loguru import logger
-from ..schemas import ChatRequest, ChatResponse, ChatHistoryItem
-from ..services.rag_chain import RAGChain
-from ..config import get_settings
-from ..persistence.session_store import get_session_store, SessionStore
-from ..persistence.cache_manager import get_cache_manager, reset_cache_manager
+"""Chat API endpoints with dependency injection."""
 
-router = APIRouter(prefix="/chat", tags=["chat"])
+from __future__ import annotations
+
+import uuid
+import json
+from typing import Annotated, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from loguru import logger
+
+from application.dependencies import (
+    VectorStoreDep,
+    EmbeddingDep,
+    LLMDep,
+    CacheDep,
+    DocumentRepositoryDep,
+)
+from application.rag_chain_service import RAGChainService
+from application.document_service import DocumentService
+from schemas import (
+    ChatRequest,
+    ChatResponse,
+    SourceDocument,
+    ChatHistoryItem,
+)
+from domain.ports import Message
+from ..persistence.session_store import get_session_store, SessionStore
+from ..persistence.session_store import ChatMessage
+from config import get_settings
+
+
+router = APIRouter(prefix="/chat", tags=["Chat"])
+
+
+def get_rag_chain_service(
+    vector_store: VectorStoreDep,
+    embedding: EmbeddingDep,
+    llm: LLMDep,
+    cache: CacheDep,
+) -> RAGChainService:
+    """Create RAG chain service instance."""
+    return RAGChainService(
+        vector_store=vector_store,
+        embedding=embedding,
+        llm=llm,
+        cache=cache,
+        top_k=5,
+    )
+
+
+def get_document_service(
+    document_repository: DocumentRepositoryDep,
+    vector_store: VectorStoreDep,
+    embedding: EmbeddingDep,
+    cache: CacheDep,
+) -> DocumentService:
+    """Create document service instance."""
+    return DocumentService(
+        document_repository=document_repository,
+        vector_store=vector_store,
+        embedding=embedding,
+        cache=cache,
+    )
+
+
+def get_session_store_dep() -> SessionStore:
+    """Get session store instance."""
+    return get_session_store()
 
 
 @router.post("/", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(
+    request: ChatRequest,
+    rag_service: Annotated[RAGChainService, Depends(get_rag_chain_service)],
+    session_store: Annotated[SessionStore, Depends(get_session_store_dep)],
+):
     """Process a chat query and return a response with sources."""
     settings = get_settings()
-    session_store = get_session_store()
-
     session_id = request.session_id or str(uuid.uuid4())
 
     # Ensure session exists
@@ -28,10 +86,23 @@ async def chat(request: ChatRequest):
         session_store.create_session(session_id)
 
     try:
-        rag_chain = RAGChain(top_k=request.top_k)
-        response = await rag_chain.query(request)
+        # Get chat history for context
+        history_messages = session_store.get_messages(session_id)
+        chat_history = [
+            Message(role=msg.role, content=msg.content)
+            for msg in history_messages
+        ]
 
-        # Persist messages to database
+        # Process query
+        answer, sources = await rag_service.chat(
+            query=request.query,
+            session_id=session_id,
+            doc_ids=request.doc_ids,
+            chat_history=chat_history,
+            temperature=request.temperature,
+        )
+
+        # Persist messages
         session_store.add_message(
             session_id=session_id,
             role="user",
@@ -40,18 +111,18 @@ async def chat(request: ChatRequest):
         session_store.add_message(
             session_id=session_id,
             role="assistant",
-            content=response.answer,
-            sources=[s.model_dump() for s in response.sources],
+            content=answer,
+            sources=[s.model_dump() for s in sources],
         )
 
         logger.info(f"Chat session {session_id}: query processed successfully")
 
         return ChatResponse(
-            answer=response.answer,
-            sources=response.sources,
+            answer=answer,
+            sources=sources,
             session_id=session_id,
             model=settings.LLM_MODEL,
-            processing_time_ms=response.processing_time_ms,
+            processing_time_ms=0.0,
         )
 
     except Exception as e:
@@ -60,52 +131,52 @@ async def chat(request: ChatRequest):
 
 
 @router.post("/stream")
-async def stream_chat(request: ChatRequest):
+async def stream_chat(
+    request: ChatRequest,
+    rag_service: Annotated[RAGChainService, Depends(get_rag_chain_service)],
+    session_store: Annotated[SessionStore, Depends(get_session_store_dep)],
+):
     """Stream a chat response token by token."""
     settings = get_settings()
-
     session_id = request.session_id or str(uuid.uuid4())
 
-    if session_id not in _chat_histories:
-        _chat_histories[session_id] = []
+    # Ensure session exists
+    session = session_store.get_session(session_id)
+    if not session:
+        session_store.create_session(session_id)
 
     try:
-        rag_chain = RAGChain(top_k=request.top_k)
+        # Get chat history for context
+        history_messages = session_store.get_messages(session_id)
+        chat_history = [
+            Message(role=msg.role, content=msg.content)
+            for msg in history_messages
+        ]
 
         full_response = []
         sources = []
-        processing_time_ms = 0
 
         async def generate():
-            nonlocal sources, processing_time_ms
+            nonlocal sources
             try:
-                result = await rag_chain.query(request)
-                sources = result.sources
-                processing_time_ms = result.processing_time_ms
+                async for chunk in rag_service.stream_chat(
+                    query=request.query,
+                    session_id=session_id,
+                    doc_ids=request.doc_ids,
+                    chat_history=chat_history,
+                    temperature=request.temperature,
+                ):
+                    full_response.append(chunk)
+                    yield f"data: {chunk.replace(chr(10), '<br>')}\n\n"
 
-                # Stream the answer content
-                if hasattr(result.answer, '__iter__') and not isinstance(result.answer, str):
-                    for part in result.answer:
-                        yield f"data: {part.replace(chr(10), '<br>')}\n\n"
-                else:
-                    # For non-streaming responses, send in chunks
-                    answer_text = result.answer
-                    chunk_size = 20  # Send 20 chars at a time for streaming effect
-                    for i in range(0, len(answer_text), chunk_size):
-                        chunk = answer_text[i:i+chunk_size]
-                        yield f"data: {chunk.replace(chr(10), '<br>')}\n\n"
-                        # Small delay for smoother streaming effect
-                        import asyncio
-                        await asyncio.sleep(0.02)
             except Exception as e:
                 logger.error(f"Stream error: {e}")
                 yield f"data: Error: {str(e)}\n\n"
-            # Send sources and metadata at the end
+
+            # Send end markers
             yield f"data: [DONE]\n\n"
-            yield f"event: sources\n"
-            yield f"data: {json.dumps([s.model_dump() for s in sources])}\n\n"
             yield f"event: meta\n"
-            yield f"data: {json.dumps({'processing_time_ms': processing_time_ms, 'model': settings.LLM_MODEL})}\n\n"
+            yield f"data: {json.dumps({'model': settings.LLM_MODEL})}\n\n"
 
         return StreamingResponse(
             generate(),
@@ -123,9 +194,11 @@ async def stream_chat(request: ChatRequest):
 
 
 @router.get("/history/{session_id}")
-async def get_history(session_id: str):
+async def get_history(
+    session_id: str,
+    session_store: Annotated[SessionStore, Depends(get_session_store_dep)],
+):
     """Get chat history for a session."""
-    session_store = get_session_store()
     messages = session_store.get_messages(session_id)
 
     if not messages:
@@ -147,9 +220,11 @@ async def get_history(session_id: str):
 
 
 @router.delete("/history/{session_id}")
-async def clear_history(session_id: str):
+async def clear_history(
+    session_id: str,
+    session_store: Annotated[SessionStore, Depends(get_session_store_dep)],
+):
     """Clear chat history for a session."""
-    session_store = get_session_store()
     success = session_store.delete_session(session_id)
     if success:
         return {"status": "success", "message": f"History for session {session_id} cleared"}
@@ -158,50 +233,72 @@ async def clear_history(session_id: str):
 
 @router.post("/ingest-text")
 async def ingest_text(
-    text: str,
-    title: str = "Text Document",
-    doc_id: Optional[str] = None,
+    text: str = Query(..., description="Text to ingest"),
+    title: str = Query("Text Document", description="Document title"),
+    doc_service: Annotated[DocumentService, Depends(get_document_service)] = None,
+    rag_service: Annotated[RAGChainService, Depends(get_rag_chain_service)] = None,
 ):
     """Ingest raw text as a document."""
-    from ..document_loader.loader import DocumentLoaderFactory
-    from ..services.ingestion import IngestionService
-    from ..schemas import DocumentMetadata, DocumentSource
-
-    doc_id = doc_id or str(uuid.uuid4())
-
-    metadata = DocumentMetadata(
-        source=DocumentSource.TEXT,
-        title=title,
-        doc_id=doc_id,
-    )
+    doc_id = str(uuid.uuid4())
 
     try:
-        chunks = await DocumentLoaderFactory.load(
-            content=text.encode("utf-8"),
-            metadata=metadata,
-        )
+        content = text.encode("utf-8")
 
-        ingestion_service = IngestionService()
-        full_text = "\n\n".join(chunk["text"] for chunk in chunks)
+        if doc_service:
+            # Use new document service
+            doc_record = await doc_service.upload_document(
+                content=content,
+                filename=title,
+                title=title,
+                source_type="text",
+            )
 
-        result = await ingestion_service.ingest(
-            text=full_text,
-            metadata=metadata.model_dump(exclude_none=True),
-            doc_id=doc_id,
-        )
+            success = await doc_service.ingest_document(
+                doc_id=doc_record.doc_id,
+                content=content,
+                filename=title,
+            )
 
-        logger.info(f"Ingested text {doc_id}: {title} with {result['chunks']} chunks")
+            return {
+                "doc_id": doc_record.doc_id,
+                "title": title,
+                "status": "success" if success else "failed",
+            }
+        else:
+            # Fallback to original implementation
+            from src.document_loader.loader import DocumentLoaderFactory
+            from src.schemas import DocumentMetadata, DocumentSource
 
-        return {
-            "doc_id": doc_id,
-            "title": title,
-            "chunks": result["chunks"],
-            "status": "success",
-        }
+            metadata = DocumentMetadata(
+                source=DocumentSource.TEXT,
+                title=title,
+                doc_id=doc_id,
+            )
+
+            chunks = await DocumentLoaderFactory.load(
+                content=content,
+                metadata=metadata,
+            )
+
+            from src.services.ingestion import IngestionService
+            ingestion_service = IngestionService()
+            full_text = "\n\n".join(chunk["text"] for chunk in chunks)
+
+            result = await ingestion_service.ingest(
+                text=full_text,
+                metadata=metadata.model_dump(exclude_none=True),
+                doc_id=doc_id,
+            )
+
+            logger.info(f"Ingested text {doc_id}: {title} with {result['chunks']} chunks")
+
+            return {
+                "doc_id": doc_id,
+                "title": title,
+                "chunks": result["chunks"],
+                "status": "success",
+            }
 
     except Exception as e:
         logger.error(f"Error ingesting text: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to ingest text: {str(e)}")
-
-
-_chat_histories: dict = {}

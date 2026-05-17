@@ -17,6 +17,21 @@ from ..config import get_settings
 logger = logging.getLogger(__name__)
 
 
+def _run_async(coro):
+    """Run coroutine, handling both nested and top-level contexts."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop, safe to use asyncio.run()
+        return asyncio.run(coro)
+    else:
+        # Already in async context, create a new task
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result()
+
+
 # Popular Edge TTS voices with metadata
 EDGE_VOICES = [
     # Chinese
@@ -121,7 +136,7 @@ class EdgeTTSProvider(BaseTTSProvider):
 
         output_path = tempfile.mktemp(suffix=".mp3")
         try:
-            asyncio.run(self._synthesize_async(Communicate, text, voice, rate, pitch_adj, output_path))
+            _run_async(self._synthesize_async(Communicate, text, voice, rate, pitch_adj, output_path))
             with open(output_path, "rb") as f:
                 audio_data = f.read()
             logger.debug(f"Edge TTS synthesized {len(audio_data)} bytes")
@@ -136,11 +151,11 @@ class EdgeTTSProvider(BaseTTSProvider):
         text: str,
         voice: str,
         rate: str,
-        pitch: str,
+        pitch: Optional[str],
         output_path: str
     ):
         """Async helper for synthesis."""
-        communicate = Communicate(text, voice, rate=rate, pitch=pitch)
+        communicate = Communicate(text, voice, rate=rate, pitch=pitch) if pitch else Communicate(text, voice, rate=rate)
         await communicate.save(output_path)
 
     def _speed_to_edge_rate(self, speed: float) -> str:
@@ -152,9 +167,16 @@ class EdgeTTSProvider(BaseTTSProvider):
         percentage = (speed - 1.0) * 100
         return f"{'+' if percentage >= 0 else ''}{percentage:.0f}%"
 
-    def _pitch_to_edge_pitch(self, pitch: float) -> str:
-        """Convert Hz pitch to edge-tts pitch format (+/-X%)."""
-        return f"{'+' if pitch >= 0 else ''}{pitch:.0f}%"
+    def _pitch_to_edge_pitch(self, pitch: float) -> Optional[str]:
+        """Convert Hz pitch to edge-tts pitch format.
+        
+        Edge TTS expects pitch in format like '+5Hz' or '-10Hz'.
+        When pitch is 0, return None to omit the parameter.
+        """
+        if pitch == 0:
+            return None
+        sign = '+' if pitch >= 0 else ''
+        return f"{sign}{pitch:.0f}Hz"
 
     async def stream(
         self,

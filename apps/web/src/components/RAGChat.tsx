@@ -10,6 +10,53 @@ import { ImageZoomModal } from './ImageZoomModal';
 
 const RAG_API_URL = import.meta.env.VITE_RAG_SERVICE_URL || 'http://localhost:8010';
 
+// ============ Animation Keyframes ============
+
+const fadeIn = keyframes`
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+`;
+
+const fadeOut = keyframes`
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.95); }
+`;
+
+const slideIn = keyframes`
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+`;
+
+const pulse = keyframes`
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+`;
+
+const spin = keyframes`
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+`;
+
+const shimmer = keyframes`
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+`;
+
+const successCheck = keyframes`
+  0% { transform: scale(0); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+`;
+
+// ============ Transition Configs ============
+
+const transitions = {
+  fast: '0.15s cubic-bezier(0.4, 0, 0.2, 1)',
+  standard: '0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  spring: '0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+  gentle: '0.45s cubic-bezier(0, 0, 0.2, 1)',
+};
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -37,31 +84,6 @@ interface Toast {
   message: string;
   type: 'success' | 'error' | 'info';
 }
-
-const fadeIn = keyframes`
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-`;
-
-const slideIn = keyframes`
-  from { opacity: 0; transform: translateX(100%); }
-  to { opacity: 1; transform: translateX(0); }
-`;
-
-const pulse = keyframes`
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-`;
-
-const transitions = {
-  fast: '0.15s ease',
-  default: '0.2s ease',
-};
-
-const spin = keyframes`
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-`;
 
 const Container = styled.div`
   display: flex;
@@ -183,34 +205,6 @@ const DocumentsList = styled.div`
   min-height: 32px;
 `;
 
-const DocumentChip = styled.div<{ selected?: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  font-size: ${typography.fontSize.sm};
-  background: ${({ selected }) => (selected ? colors.primary : colors.primaryLight)};
-  color: ${({ selected }) => (selected ? 'white' : colors.primary)};
-  border-radius: ${radius.full};
-  border: 1px solid ${({ selected }) => (selected ? colors.primary : colors.primary + '20')};
-  cursor: pointer;
-  transition: all ${transitions.fast};
-  user-select: none;
-
-  &:hover {
-    background: ${({ selected }) => (selected ? colors.primaryHover : colors.primary + '30')};
-    transform: translateY(-1px);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-`;
-
-const DocumentIcon = styled.span`
-  font-size: 14px;
-`;
-
 const SelectionControls = styled.div`
   display: flex;
   gap: ${spacing.sm};
@@ -248,6 +242,144 @@ const EmptyDocsMessage = styled.div`
   font-size: ${typography.fontSize.sm};
   color: ${colors.textTertiary};
   font-style: italic;
+`;
+
+// ============ Skeleton Loading ============
+
+const SkeletonBase = styled.div`
+  background: linear-gradient(
+    90deg,
+    ${colors.surfaceSecondary} 0%,
+    ${colors.surfaceTertiary} 50%,
+    ${colors.surfaceSecondary} 100%
+  );
+  background-size: 200% 100%;
+  animation: ${shimmer} 1.8s ease-in-out infinite;
+`;
+
+const DocumentSkeleton = styled(SkeletonBase)`
+  height: 28px;
+  width: 120px;
+  border-radius: ${radius.full};
+`;
+
+const SkeletonRow = styled.div`
+  display: flex;
+  gap: ${spacing.sm};
+  flex-wrap: wrap;
+`;
+
+// ============ Document Card (Apple-style) ============
+
+const DocumentCard = styled.div<{ selected?: boolean; isDeleting?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: ${spacing.xs};
+  padding: 8px 14px;
+  font-size: ${typography.fontSize.sm};
+  background: ${({ selected }) =>
+    selected ? colors.primary : colors.surface};
+  color: ${({ selected }) =>
+    selected ? 'white' : colors.text};
+  border-radius: ${radius.lg};
+  border: 1.5px solid ${({ selected }) =>
+    selected ? colors.primary : colors.border};
+  cursor: pointer;
+  transition: all ${transitions.spring};
+  user-select: none;
+  box-shadow: ${({ selected }) =>
+    selected ? `0 2px 8px ${colors.primary}30` : shadows.sm};
+  position: relative;
+  overflow: hidden;
+
+  ${({ isDeleting }) => isDeleting && css`
+    animation: ${fadeOut} 0.3s ease forwards;
+    pointer-events: none;
+  `}
+
+  &:hover {
+    border-color: ${colors.primary};
+    box-shadow: ${({ selected }) =>
+      selected ? `0 4px 12px ${colors.primary}40` : shadows.card};
+    transform: translateY(-2px);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  /* Focus ring for keyboard navigation */
+  &:focus-visible {
+    outline: 2px solid ${colors.primary};
+    outline-offset: 2px;
+  }
+`;
+
+const DocumentIcon = styled.span<{ selected?: boolean }>`
+  font-size: 16px;
+  opacity: ${({ selected }) => selected ? 1 : 0.7};
+  transition: opacity ${transitions.fast};
+`;
+
+const DocumentTitle = styled.span<{ selected?: boolean }>`
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: ${({ selected }) =>
+    selected ? typography.fontWeight.medium : typography.fontWeight.normal};
+`;
+
+const DeleteButton = styled.button<{ selected?: boolean; isDeleting?: boolean }>`
+  background: ${({ selected }) =>
+    selected ? 'rgba(255,255,255,0.25)' : colors.surfaceSecondary};
+  border: none;
+  padding: 4px 6px;
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: ${radius.sm};
+  transition: all ${transitions.fast};
+  margin-left: 4px;
+  color: ${({ selected }) =>
+    selected ? 'white' : colors.textSecondary};
+
+  ${({ isDeleting }) => isDeleting && css`
+    opacity: 0.3;
+    cursor: not-allowed;
+  `}
+
+  &:hover {
+    opacity: 1;
+    background: ${({ selected }) =>
+      selected ? 'rgba(255,255,255,0.4)' : colors.surfaceTertiary};
+    transform: scale(1.1);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${colors.primary};
+    outline-offset: 1px;
+  }
+`;
+
+// ============ Success Animation ============
+
+const SuccessOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  background: ${colors.success}20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: ${successCheck} 0.4s ease forwards;
+  border-radius: inherit;
 `;
 
 const ChatContainer = styled.div`
@@ -536,7 +668,7 @@ const SendButton = styled.button<{ disabled?: boolean }>`
   border-radius: ${radius.lg};
   cursor: ${({ disabled }) => (disabled ? 'not-allowed' : 'pointer')};
   opacity: ${({ disabled }) => (disabled ? 0.5 : 1)};
-  transition: all ${transitions.default};
+  transition: all ${transitions.standard};
   font-size: 18px;
 
   &:hover:not(:disabled) {
@@ -762,6 +894,9 @@ export function RAGChat() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   const [zoomedImage, setZoomedImage] = useState<{ src: string; alt?: string } | null>(null);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(true);
+  const [deletingDocIds, setDeletingDocIds] = useState<Set<string>>(new Set());
+  const [justDeletedDocId, setJustDeletedDocId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -793,6 +928,7 @@ export function RAGChat() {
   }, []);
 
   const fetchAvailableDocs = async () => {
+    setIsLoadingDocs(true);
     try {
       const response = await fetch(`${RAG_API_URL}/documents/`);
       if (response.ok) {
@@ -807,6 +943,8 @@ export function RAGChat() {
       }
     } catch (error) {
       console.error('Failed to fetch documents:', error);
+    } finally {
+      setIsLoadingDocs(false);
     }
   };
 
@@ -828,6 +966,53 @@ export function RAGChat() {
 
   const clearDocSelection = () => {
     setSelectedDocIds(new Set());
+  };
+
+  const handleDeleteDocument = async (docId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    // Optimistic update - show deleting state immediately
+    setDeletingDocIds((prev) => new Set(prev).add(docId));
+
+    try {
+      const response = await fetch(`${RAG_API_URL}/documents/${docId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Delete failed');
+      }
+
+      // Animate success then remove
+      setTimeout(() => {
+        setJustDeletedDocId(docId);
+        setTimeout(() => {
+          setAvailableDocs((prev) => prev.filter((d) => d.id !== docId));
+          setSelectedDocIds((prev) => {
+            const next = new Set(prev);
+            next.delete(docId);
+            return next;
+          });
+          setDeletingDocIds((prev) => {
+            const next = new Set(prev);
+            next.delete(docId);
+            return next;
+          });
+          setJustDeletedDocId(null);
+        }, 300);
+      }, 200);
+
+      addToast('文档已删除', 'success');
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      // Rollback on error
+      setDeletingDocIds((prev) => {
+        const next = new Set(prev);
+        next.delete(docId);
+        return next;
+      });
+      addToast('删除失败，请重试', 'error');
+    }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1109,7 +1294,7 @@ export function RAGChat() {
         <SectionHeader>
           <SectionTitle>
             {t.ragChat.documents}
-            <DocumentCount>{availableDocs.length}</DocumentCount>
+            {!isLoadingDocs && <DocumentCount>{availableDocs.length}</DocumentCount>}
           </SectionTitle>
           {availableDocs.length > 0 && selectedDocIds.size > 0 && (
             <SelectedBadge>
@@ -1117,19 +1302,60 @@ export function RAGChat() {
             </SelectedBadge>
           )}
         </SectionHeader>
-        {availableDocs.length > 0 ? (
+        {isLoadingDocs ? (
+          <SkeletonRow>
+            <DocumentSkeleton />
+            <DocumentSkeleton style={{ width: 100 }} />
+            <DocumentSkeleton style={{ width: 140 }} />
+          </SkeletonRow>
+        ) : availableDocs.length > 0 ? (
           <>
             <DocumentsList>
               {availableDocs.map((doc) => (
-                <DocumentChip
+                <DocumentCard
                   key={doc.id}
                   selected={selectedDocIds.has(doc.id)}
+                  isDeleting={deletingDocIds.has(doc.id) && justDeletedDocId !== doc.id}
                   onClick={() => toggleDocSelection(doc.id)}
-                  title={selectedDocIds.has(doc.id) ? 'Click to deselect' : 'Click to select'}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleDocSelection(doc.id);
+                    }
+                  }}
+                  tabIndex={0}
+                  role="checkbox"
+                  aria-checked={selectedDocIds.has(doc.id)}
+                  aria-label={`${doc.title}, ${selectedDocIds.has(doc.id) ? '已选择' : '未选择'}`}
                 >
-                  <DocumentIcon>{selectedDocIds.has(doc.id) ? '✓' : '📄'}</DocumentIcon>
-                  {doc.title}
-                </DocumentChip>
+                  <DocumentIcon selected={selectedDocIds.has(doc.id)}>
+                    {selectedDocIds.has(doc.id) ? '✓' : '📄'}
+                  </DocumentIcon>
+                  <DocumentTitle selected={selectedDocIds.has(doc.id)}>
+                    {doc.title}
+                  </DocumentTitle>
+                  <DeleteButton
+                    selected={selectedDocIds.has(doc.id)}
+                    isDeleting={deletingDocIds.has(doc.id)}
+                    onClick={(e) => handleDeleteDocument(doc.id, e)}
+                    aria-label={`删除 ${doc.title}`}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDeleteDocument(doc.id, e as unknown as React.MouseEvent);
+                      }
+                    }}
+                  >
+                    ✕
+                  </DeleteButton>
+                  {justDeletedDocId === doc.id && (
+                    <SuccessOverlay>
+                      <span style={{ fontSize: 16 }}>✓</span>
+                    </SuccessOverlay>
+                  )}
+                </DocumentCard>
               ))}
             </DocumentsList>
             <SelectionControls>

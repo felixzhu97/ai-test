@@ -21,7 +21,7 @@ System_Boundary(services_boundary, "服务层") {
     Container(tts_service, "TTS 服务", "Python + FastAPI", "文本转语音合成 (Azure/Google/ElevenLabs/Edge/Coqui) (Port 8005)")
     Container(text_service, "Text 服务", "Python + FastAPI", "文本处理和 LLM 网关 (Port 8006)")
     Container(rag_service, "RAG 服务", "Python + FastAPI + LangChain", "文档检索和问答 (Port 8001)")
-    Container(media_gen_service, "Media Gen 服务", "Python + FastAPI + Stable Diffusion", "本地文生图 (Port 3456)")
+    Container(media_gen_service, "Media Gen 服务", "Python + FastAPI + Clean Architecture", "本地文生图 (Port 8015), 遵循 DDD 和分层架构")
 }
 
 ' === AI Agents 内部容器 ===

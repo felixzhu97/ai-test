@@ -18,7 +18,7 @@ System_Boundary(ai_platform, "AI-Test Platform") {
     System(tts_service, "TTS 服务", "文本转语音合成服务 (Port 8005)")
     System(text_service, "Text 服务", "文本处理和 LLM 网关服务 (Port 8006)")
     System(rag_service, "RAG 服务", "文档检索和问答系统 (Port 8001)")
-    System(media_gen_service, "Media Gen 服务", "本地文生图服务 (Port 3456)")
+    System(media_gen_service, "Media Gen 服务", "本地文生图服务 (Port 8015)")
     System(vector_store, "Vector Store", "Qdrant 向量数据库，存储文档嵌入 (Port 6333)")
 }
 

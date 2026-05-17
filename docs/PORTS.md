@@ -1,30 +1,117 @@
 # Service Ports Configuration
 
-This document defines the standard port assignments for all AI Test platform services.
+Standard port assignments for AI-Test platform services.
 
 ## Port Assignment Table
 
-
-| Service        | Port | Protocol | Description                                          |
-| -------------- | ---- | -------- | ---------------------------------------------------- |
-| Vision Service | 8000 | HTTP     | Image recognition, OCR, captioning, video generation |
-| AI Agents      | 8003 | HTTP     | Multi-agent orchestration with tool support          |
-| RAG Service    | 8010 | HTTP     | Retrieval-augmented generation with Qdrant           |
-| TTS Service    | 8013 | HTTP     | Text-to-Speech synthesis                             |
-| Text Service   | 8006 | HTTP     | Text generation with LLM providers                   |
-| Media Gen      | 8015 | HTTP     | Standalone image generation (Stable Diffusion)       |
-
+| Service              | Port | Protocol | Description                              |
+| -------------------- | ---- | ------- | ---------------------------------------- |
+| Text Service         | 8006 | HTTP    | Text generation with LLM providers       |
+| TTS Service          | 8005 | HTTP    | Text-to-Speech synthesis                 |
+| RAG Service          | 8010 | HTTP    | Retrieval-augmented generation           |
+| Media Generation     | 8015 | HTTP    | Text-to-image (Stable Diffusion)         |
 
 ### Supporting Services
 
-
-| Service      | Port      | Description             |
+| Service      | Port      | Description              |
 | ------------ | --------- | ----------------------- |
 | Qdrant       | 6333/6334 | Vector database for RAG |
 | Ollama       | 11434     | Local LLM inference     |
 | Redis        | 6379      | Optional cache backend  |
-| Web Frontend | 5173      | Vite dev server         |
 
+---
+
+## API Endpoints Summary
+
+### Text Service (8006)
+
+| Method   | Endpoint                    | Description              |
+| -------- | --------------------------- | ---------------------- |
+| `GET`    | `/api/text/health`          | Health check            |
+| `GET`    | `/api/text/providers`       | List LLM providers      |
+| `GET`    | `/api/text/models`         | List available models   |
+| `POST`   | `/api/text/complete`       | Text completion         |
+| `POST`   | `/api/text/complete/stream`| Stream completion       |
+| `POST`   | `/api/text/chat`           | Chat completion         |
+| `POST`   | `/api/text/chat/stream`    | Stream chat completion  |
+| `GET`    | `/api/text/session/{id}`   | Session history         |
+| `DELETE` | `/api/text/session/{id}`   | Clear session           |
+| `POST`   | `/api/text/reset`          | Reset LLM cache         |
+
+### TTS Service (8005)
+
+| Method | Endpoint            | Description            |
+| ------ | ------------------- | ---------------------- |
+| `GET`  | `/tts/health`       | Health check           |
+| `GET`  | `/tts/voices`       | List voices            |
+| `GET`  | `/tts/providers`    | List TTS providers     |
+| `GET`  | `/tts/provider`    | Get current provider    |
+| `POST` | `/tts/synthesize`  | Synthesize speech      |
+| `POST` | `/tts/stream`      | Stream speech          |
+
+### RAG Service (8010)
+
+| Method   | Endpoint                    | Description          |
+| -------- | --------------------------- | ------------------- |
+| `GET`    | `/health`                  | Health check        |
+| `POST`   | `/documents/upload`        | Upload document     |
+| `POST`   | `/documents/ingest-url`    | Ingest from URL     |
+| `GET`    | `/documents/`             | List documents      |
+| `GET`    | `/documents/database`     | List from vector DB |
+| `GET`    | `/documents/{id}/stats`   | Document stats      |
+| `DELETE` | `/documents/{id}`         | Delete document     |
+| `POST`   | `/chat/`                  | Chat query          |
+| `POST`   | `/chat/stream`            | Streaming chat      |
+| `GET`    | `/chat/history/{session}`  | Chat history        |
+| `DELETE` | `/chat/history/{session}` | Clear history       |
+| `POST`   | `/chat/ingest-text`       | Ingest raw text     |
+
+### Media Generation Service (8015)
+
+| Method | Endpoint              | Description           |
+| ------ | --------------------- | --------------------- |
+| `GET`  | `/health`             | Health check          |
+| `POST` | `/image/generate`     | Generate image        |
+| `POST` | `/cache/clear`        | Clear model cache     |
+
+---
+
+## Domain Ports (Interfaces)
+
+### Text Service Domain Ports
+
+| Port                    | Location                                | Description                     |
+| ----------------------- | --------------------------------------- | ------------------------------ |
+| `ChatMessage`           | `src/domain/entities/message.py`        | Chat message value object      |
+| `LLM Gateway Protocol`  | `src/infrastructure/gateways/llm_protocol.py` | LLM interface (Adapter pattern) |
+
+### TTS Service Domain Ports
+
+| Port                   | Location                              | Description                    |
+| ---------------------- | ------------------------------------- | ----------------------------- |
+| `TTSProviderPort`      | `src/domain/ports/tts_provider.py`    | TTS provider interface         |
+| `Voice`                | `src/domain/entities/voice.py`         | Voice entity                  |
+| `SynthesisRequest`     | `src/domain/entities/synthesis.py`    | Synthesis request entity      |
+| `OutputFormat`         | `src/domain/entities/audio_config.py` | Audio output format enum      |
+
+### RAG Service Domain Ports
+
+| Port                    | Location                              | Description                     |
+| ----------------------- | ------------------------------------- | ------------------------------ |
+| `VectorStorePort`       | `src/domain/ports/vector_store.py`     | Vector storage interface        |
+| `EmbeddingPort`         | `src/domain/ports/embedding.py`        | Embedding generation interface  |
+| `LLMGatewayPort`        | `src/domain/ports/llm.py`             | LLM interface                  |
+| `CachePort`             | `src/domain/ports/cache.py`            | Cache interface                |
+| `DocumentRepositoryPort`| `src/domain/ports/document_repository.py`| Document persistence interface |
+
+### Media Generation Domain Ports
+
+| Port                  | Location                                   | Description                  |
+| --------------------- | ------------------------------------------ | ---------------------------- |
+| `ImageEncoderPort`    | `src/domain/ports/image_encoder_port.py`    | Image encoding interface     |
+| `ModelCacheRepository`| `src/domain/repositories/model_cache_repository.py` | Model cache interface |
+
+---
 
 ## Environment Variables
 
@@ -32,140 +119,31 @@ This document defines the standard port assignments for all AI Test platform ser
 
 ```env
 VITE_TEXT_SERVICE_URL=http://localhost:8006
-VITE_VISION_SERVICE_URL=http://localhost:8000
-VITE_SPEECH_SERVICE_URL=http://localhost:8013
+VITE_SPEECH_SERVICE_URL=http://localhost:8005
 VITE_RAG_SERVICE_URL=http://localhost:8010
-VITE_AI_AGENTS_URL=http://localhost:8003
 ```
 
-### Backend Service Defaults
+### Backend Service Ports
 
-Each service reads from its own `.env` file. Key port variables:
+| Service              | Config File                    | Default |
+| -------------------- | ------------------------------ | ------- |
+| Text Service         | `text-service/src/core/config.py` | 8006   |
+| TTS Service          | `tts-service/src/config.py`      | 8005   |
+| RAG Service          | `rag/src/config.py`              | 8010   |
+| Media Generation     | `media-gen/src/core/settings.py` | 8015   |
 
-**text-service/src/core/config.py**
-
-```python
-PORT: int = 8006
-```
-
-**vision-service/src/main.py**
-
-```python
-port=8000
-```
-
-**rag/src/config.py**
-
-```python
-PORT: int = 8010
-```
-
-**tts-service/src/config.py**
-
-```python
-port: int = Field(default=8013, description="Server port")
-```
-
-**ai_agents/core/config.py**
-
-```python
-PORT: int = 8003
-```
-
-**media-gen/app.py**
-
-```python
-MEDIA_GEN_PORT = int(os.getenv("MEDIA_GEN_PORT", "8015"))
-```
-
-## API Endpoints Summary
-
-### Text Service (8006)
-
-- `GET /api/text/health` - Health check
-- `GET /api/text/providers` - List LLM providers
-- `GET /api/text/models` - List available models
-- `POST /api/text/chat` - Chat completion
-- `POST /api/text/chat/stream` - Streaming chat
-- `POST /api/text/complete` - Text completion
-
-### Vision Service (8000)
-
-- `GET /health` - Health check
-- `POST /vision/detect` - Object detection
-- `POST /vision/caption` - Image captioning
-- `POST /vision/ocr` - OCR text extraction
-- `POST /vision/analyze` - Multi-task analysis
-- `POST /image-gen/generate` - Text-to-image (SDXL/SD3)
-- `POST /image-gen/variation` - Image variation
-- `POST /image-gen/upscale` - AI upscaling
-- `POST /video/generate` - Video generation
-
-### RAG Service (8010)
-
-- `GET /health` - Health check
-- `GET /documents/` - List documents
-- `POST /documents/upload` - Upload document
-- `POST /documents/ingest-url` - Ingest from URL
-- `DELETE /documents/{doc_id}` - Delete document
-- `POST /chat/` - RAG chat query
-- `POST /chat/stream` - Streaming RAG chat
-
-### TTS Service (8013)
-
-- `GET /tts/health` - Health check
-- `GET /tts/voices` - List voices
-- `GET /tts/providers` - List TTS providers
-- `POST /tts/synthesize` - Synthesize speech
-- `POST /tts/stream` - Stream speech
-
-### AI Agents (8003)
-
-- `GET /health` - Health check
-- `GET /agents` - List available agents
-- `POST /api/agents/supervisor/invoke` - Invoke supervisor agent
-- `POST /api/agents/rag_agent/invoke` - Invoke RAG agent
-
-## Docker Compose Ports
-
-When running with Docker, ports are mapped as follows:
-
-```yaml
-# vision-service
-8000:8000
-
-# ai-agents
-8003:8003
-
-# rag
-8010:8010
-6333:6333  # Qdrant
-6334:6334  # Qdrant GRPC
-
-# tts-service
-8013:8013
-
-# text-service
-8006:8006
-
-# media-gen
-8015:8015
-```
+---
 
 ## Common Issues
 
 1. **Port Already in Use**
-  ```bash
-   # Find process using port
-   lsof -i :8000
-
-   # Kill if needed
+   ```bash
+   lsof -i :8006
    kill -9 <PID>
-  ```
-2. **CORS Errors**
-  All services have CORS configured to allow `*`. If issues persist, check that the service is running.
-3. **Wrong Port in Frontend**
-  Copy `.env.example` to `.env` in `apps/web/` and verify all `VITE_`* URLs match the running services.
-4. **Service-to-Service Communication**
-  When services call each other, they use hardcoded localhost URLs. Ensure all services are running before testing inter-service features.
+   ```
 
+2. **CORS Errors**
+   All services have CORS configured. Verify services are running.
+
+3. **Service-to-Service Communication**
+   Services use localhost URLs. Ensure all required services are running.

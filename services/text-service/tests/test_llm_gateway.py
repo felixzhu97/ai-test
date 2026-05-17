@@ -2,8 +2,8 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
-from core.llm_gateway import TextToTextService, LLMGateway, ChatMessage
-from core.config import Settings
+from src.core.llm_gateway import TextToTextService, LLMGateway, ChatMessage
+from src.core.config import Settings
 
 
 class TestChatMessage:
@@ -50,7 +50,7 @@ class TestTextToTextService:
         assert service.max_tokens == 1000
         assert service.system_prompt == "You are helpful."
 
-    @patch('core.llm_gateway.LLMGateway.get_llm')
+    @patch('src.core.llm_gateway.LLMGateway.get_llm')
     def test_complete_calls_llm(self, mock_get_llm):
         """Test that complete() calls the LLM."""
         mock_llm = MagicMock()
@@ -65,7 +65,7 @@ class TestTextToTextService:
         assert result == "Test response"
         mock_llm.invoke.assert_called_once()
 
-    @patch('core.llm_gateway.LLMGateway.get_llm')
+    @patch('src.core.llm_gateway.LLMGateway.get_llm')
     def test_chat_with_string_messages(self, mock_get_llm):
         """Test chat with string messages."""
         mock_llm = MagicMock()
@@ -80,7 +80,7 @@ class TestTextToTextService:
         assert result == "Test response"
         assert mock_llm.invoke.call_count == 1
 
-    @patch('core.llm_gateway.LLMGateway.get_llm')
+    @patch('src.core.llm_gateway.LLMGateway.get_llm')
     def test_chat_with_dict_messages(self, mock_get_llm):
         """Test chat with dict messages."""
         mock_llm = MagicMock()
@@ -97,21 +97,21 @@ class TestTextToTextService:
 
         assert result == "Test response"
 
-    @patch('core.llm_gateway.LLMGateway.get_llm')
+    @patch('src.core.llm_gateway.LLMGateway.get_llm')
     def test_extract_content_from_string(self, mock_get_llm):
         """Test content extraction from string response."""
         service = TextToTextService()
         result = service._extract_content("Simple string")
         assert result == "Simple string"
 
-    @patch('core.llm_gateway.LLMGateway.get_llm')
+    @patch('src.core.llm_gateway.LLMGateway.get_llm')
     def test_extract_content_from_dict(self, mock_get_llm):
         """Test content extraction from dict response."""
         service = TextToTextService()
         result = service._extract_content({"content": "Dict content"})
         assert result == "Dict content"
 
-    @patch('core.llm_gateway.LLMGateway.get_llm')
+    @patch('src.core.llm_gateway.LLMGateway.get_llm')
     def test_extract_content_from_object(self, mock_get_llm):
         """Test content extraction from object with content attr."""
         service = TextToTextService()
@@ -146,7 +146,7 @@ class TestSettings:
         """Test settings have correct defaults."""
         settings = Settings()
         assert settings.HOST == "0.0.0.0"
-        assert settings.PORT == 8004
+        assert settings.PORT == 8006
         assert settings.LLM_PROVIDER == "openai"
         assert settings.LLM_MODEL == "gpt-4o-mini"
         assert settings.LLM_TEMPERATURE == 0.7
