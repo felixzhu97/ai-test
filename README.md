@@ -210,23 +210,18 @@ ai-test/
 └── tests/               # 测试文件
 ```
 
-## 快速开始
-
-### 环境要求
-
-- Node.js >= 20
-- Python >= 3.10
-- pnpm >= 9
-- Docker (用于 Qdrant)
-
-### 安装依赖
+## 一键启动
 
 ```bash
-# 安装 pnpm
-npm install -g pnpm
+# 启动所有服务
+pnpm start
 
-# 安装所有依赖
-pnpm install
+# 指定环境
+pnpm start:dev    # 开发模式
+pnpm start:prod   # 生产模式
+
+# 停止所有服务
+pnpm stop
 ```
 
 ## 服务端口
@@ -245,12 +240,11 @@ pnpm install
 | Qdrant         | 6333/6334 | 向量数据库                   |
 | Ollama         | 11434     | 本地 LLM（可选）              |
 
-
-### 启动服务
+## 手动启动
 
 ```bash
-# 启动所有服务 (开发模式)
-pnpm dev
+# 安装依赖
+pnpm install
 
 # 启动特定服务
 cd apps/web && pnpm dev              # 前端 (端口 5173)

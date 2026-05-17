@@ -8,7 +8,11 @@
     "build": "pnpm -r run build",
     "lint": "pnpm -r run lint",
     "test": "pnpm -r run test",
-    "clean": "pnpm -r run clean"
+    "clean": "pnpm -r run clean",
+    "start": "bash scripts/app/start.sh",
+    "start:dev": "bash scripts/app/start.sh dev",
+    "start:prod": "bash scripts/app/start.sh prod",
+    "stop": "bash scripts/app/stop.sh"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -31,6 +31,8 @@ class LLMGateway:
             model = model or settings.LLM_MODEL
         elif provider == "ollama":
             model = model or settings.OLLAMA_MODEL
+        elif provider == "deepseek":
+            model = model or settings.LLM_MODEL
         else:
             model = model or settings.LLM_MODEL
 
@@ -60,6 +62,13 @@ class LLMGateway:
             cls._instance = ChatOllama(
                 base_url=settings.OLLAMA_BASE_URL,
                 model=model,
+                temperature=temperature,
+            )
+        elif provider == "deepseek":
+            cls._instance = ChatOpenAI(
+                model=model,
+                api_key=settings.DEEPSEEK_API_KEY or None,
+                base_url=settings.DEEPSEEK_BASE_URL,
                 temperature=temperature,
             )
         else:

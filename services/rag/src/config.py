@@ -1,10 +1,16 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from typing import Literal
 from pathlib import Path
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
     HOST: str = "0.0.0.0"
     PORT: int = 8010
     LOG_LEVEL: str = "INFO"
@@ -17,14 +23,16 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     EMBEDDING_DEVICE: str = "cuda"
 
-    LLM_PROVIDER: Literal["openai", "anthropic", "ollama"] = "openai"
-    LLM_MODEL: str = "gpt-4o-mini"
+    LLM_PROVIDER: Literal["openai", "anthropic", "ollama", "deepseek"] = "deepseek"
+    LLM_MODEL: str = "deepseek-chat"
 
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     ANTHROPIC_API_KEY: str = ""
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "qwen2.5:7b"
+    DEEPSEEK_API_KEY: str = ""
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
 
     CHUNK_SIZE: int = 500
     CHUNK_OVERLAP: int = 50
@@ -59,10 +67,6 @@ class Settings(BaseSettings):
     @property
     def SESSION_DB_PATH(self) -> str:
         return str(Path(self.DB_BASE_PATH) / "sessions.db")
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 
 @lru_cache

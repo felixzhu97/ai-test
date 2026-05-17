@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     DEVICE: str = "cuda"
     MODEL_CACHE_DIR: str = "./models"
     MAX_CONCURRENT_REQUESTS: int = 4
-    HF_ENDPOINT: str = "https://hf-mirror.com"
+    HF_ENDPOINT: str = ""
 
     class Config:
         env_file = ".env"

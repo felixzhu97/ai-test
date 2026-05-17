@@ -5,6 +5,7 @@
 
 const TEXT_SERVICE_URL = import.meta.env.VITE_TEXT_SERVICE_URL || 'http://localhost:8006';
 const VISION_SERVICE_URL = import.meta.env.VITE_VISION_SERVICE_URL || 'http://localhost:8000';
+const MEDIA_GEN_SERVICE_URL = import.meta.env.VITE_MEDIA_GEN_SERVICE_URL || 'http://localhost:8015';
 const SPEECH_SERVICE_URL = import.meta.env.VITE_SPEECH_SERVICE_URL || 'http://localhost:8013';
 
 // ==================== Service Configuration ====================
@@ -349,7 +350,7 @@ export async function getProviders(): Promise<ProviderInfo[]> {
 // ==================== Vision Service (Image Generation) ====================
 
 export async function generateImage(request: ImageGenerationRequest): Promise<ImageGenerationResponse> {
-  const response = await fetch(`${VISION_SERVICE_URL}/image-gen/generate`, {
+  const response = await fetch(`${MEDIA_GEN_SERVICE_URL}/image/generate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -40,13 +40,15 @@ class APIKeyAuth:
     
     async def __call__(
         self,
-        api_key: Optional[str] = Security(api_key_header)
+        api_key: Optional[str] = None
     ) -> Optional[str]:
         """Validate API key from request header.
         
         Returns the API key if valid, None if authentication is disabled.
         Raises HTTPException if authentication is required but key is invalid.
         """
+        # Get api_key from header using FastAPI Security
+        api_key = await Security(self.api_key_header)
         # Skip authentication if no API keys are configured (development mode)
         if not API_KEYS:
             logger.debug("API authentication disabled - no API keys configured")
@@ -81,7 +83,7 @@ api_key_auth = APIKeyAuth()
 
 
 async def verify_api_key(
-    api_key: Optional[str] = Security(api_key_auth)
+    api_key: Optional[str] = Security(api_key_auth.api_key_header)
 ) -> Optional[str]:
     """FastAPI dependency for API key verification.
     
@@ -92,7 +94,7 @@ async def verify_api_key(
     
     Returns the API key if valid, or None if authentication is disabled.
     """
-    return api_key
+    return await api_key_auth(api_key)
 
 
 def reload_api_keys() -> None:

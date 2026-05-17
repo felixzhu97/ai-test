@@ -113,7 +113,6 @@ const StyledButton = styled.button<{
   variant: ButtonVariant;
   size: ButtonSize;
   fullWidth: boolean;
-  loading: boolean;
 }>`
   display: inline-flex;
   align-items: center;
@@ -167,7 +166,6 @@ export function Button({
       variant={variant}
       size={size}
       fullWidth={fullWidth}
-      loading={loading}
       disabled={disabled || loading}
       {...props}
     >
