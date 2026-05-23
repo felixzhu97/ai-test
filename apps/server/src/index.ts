@@ -13,9 +13,12 @@ app.get('/api/id', (_req, res) => {
 });
 
 app.get('/api/clamp', (req, res) => {
-  const value = parseFloat(req.query.value as string) ?? 0;
-  const min = parseFloat(req.query.min as string) ?? 0;
-  const max = parseFloat(req.query.max as string) ?? 100;
+  const rawValue = parseFloat(req.query.value as string);
+  const rawMin = parseFloat(req.query.min as string);
+  const rawMax = parseFloat(req.query.max as string);
+  const value = isNaN(rawValue) ? 0 : rawValue;
+  const min = isNaN(rawMin) ? 0 : rawMin;
+  const max = isNaN(rawMax) ? 100 : rawMax;
   res.json({ value, min, max, result: clamp(value, min, max) });
 });
 

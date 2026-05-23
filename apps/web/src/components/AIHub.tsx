@@ -35,11 +35,6 @@ const spin = keyframes`
   to { transform: rotate(360deg); }
 `;
 
-const pulse = keyframes`
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-`;
-
 // ==================== Styled Components ====================
 
 const Container = styled.div`
@@ -152,20 +147,6 @@ const CurrentModelBadge = styled.span`
   padding: 2px 8px;
   background: ${colors.border};
   border-radius: ${radius.sm};
-`;
-
-const ModelLoadingSpinner = styled.span`
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border: 2px solid ${colors.border};
-  border-top-color: ${colors.primary};
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
 `;
 
 // Chat Components (matching AI Infrastructure style)
@@ -435,27 +416,6 @@ const Label = styled.label`
   color: ${colors.textSecondary};
 `;
 
-const Input = styled.input`
-  padding: ${spacing.md};
-  font-size: ${typography.fontSize.base};
-  font-family: ${typography.fontFamily.body};
-  border: 1px solid ${colors.border};
-  border-radius: ${radius.md};
-  background: ${colors.surface};
-  color: ${colors.text};
-  transition: border-color ${transitions.fast}, box-shadow ${transitions.fast};
-
-  &:focus {
-    outline: none;
-    border-color: ${colors.primary};
-    box-shadow: ${shadows.input};
-  }
-
-  &::placeholder {
-    color: ${colors.textTertiary};
-  }
-`;
-
 const TextAreaStyled = styled.textarea`
   padding: ${spacing.md};
   font-size: ${typography.fontSize.base};
@@ -524,8 +484,8 @@ const ActionButton = styled.button<{ primary?: boolean; disabled?: boolean }>`
   font-weight: ${typography.fontWeight.medium};
   font-family: ${typography.fontFamily.body};
   background: ${({ primary, disabled }) => (primary ? (disabled ? colors.border : colors.primary) : colors.surface)};
-  color: ${({ primary, disabled }) => (primary ? 'white' : colors.text)};
-  border: 1px solid ${({ primary, disabled }) => (primary ? 'transparent' : (disabled ? colors.border : colors.border))};
+  color: ${({ disabled }) => (disabled ? colors.textSecondary : colors.text)};
+  border: 1px solid ${colors.border};
   border-radius: ${radius.md};
   cursor: ${({ disabled }) => (disabled ? 'not-allowed' : 'pointer')};
   opacity: ${({ disabled }) => (disabled ? 0.6 : 1)};
@@ -676,13 +636,6 @@ const Slider = styled.input`
   &::-webkit-slider-thumb:hover {
     transform: scale(1.15);
   }
-`;
-
-const SliderValue = styled.span`
-  font-size: ${typography.fontSize.sm};
-  font-weight: ${typography.fontWeight.medium};
-  color: ${colors.textSecondary};
-  text-align: center;
 `;
 
 const AudioPlayer = styled.div`

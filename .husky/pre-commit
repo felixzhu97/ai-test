@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+. "$(dirname -- "$0")/../.husky/_/husky.sh"
+
+echo "🔍 Running pre-commit checks..."
+
+# Type check for web app
+echo "📦 Type checking apps/web..."
+pnpm --filter @ai-test/web typecheck
+if [ $? -ne 0 ]; then
+  echo "❌ Type check failed for apps/web"
+  exit 1
+fi
+
+# Type check for server
+echo "📦 Type checking apps/server..."
+pnpm --filter @ai-test/server typecheck
+if [ $? -ne 0 ]; then
+  echo "❌ Type check failed for apps/server"
+  exit 1
+fi
+
+# Type check for utils
+echo "📦 Type checking packages/utils..."
+pnpm --filter @ai-test/utils typecheck
+if [ $? -ne 0 ]; then
+  echo "❌ Type check failed for packages/utils"
+  exit 1
+fi
+
+# Run tests
+echo "🧪 Running tests..."
+pnpm test
+if [ $? -ne 0 ]; then
+  echo "❌ Tests failed"
+  exit 1
+fi
+
+echo "✅ All pre-commit checks passed!"

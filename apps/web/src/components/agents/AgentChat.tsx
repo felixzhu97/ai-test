@@ -140,7 +140,7 @@ interface AgentChatProps {
   quickPrompts?: string[];
 }
 
-export function AgentChat({ agentInfo, apiEndpoint, quickPrompts = [] }: AgentChatProps) {
+export function AgentChat({ agentInfo: _agentInfo, apiEndpoint, quickPrompts = [] }: AgentChatProps) {
   const { t } = useI18n();
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [input, setInput] = useState('');
