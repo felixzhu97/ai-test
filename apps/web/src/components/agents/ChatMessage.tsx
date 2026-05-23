@@ -491,7 +491,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
   };
 
   return (
-    <MessageBubble isUser={isUser}>
+    <MessageBubble
+      isUser={isUser}
+    >
       <MessageContent isUser={isUser}>
         {isUser ? content : renderAssistantContent()}
       </MessageContent>

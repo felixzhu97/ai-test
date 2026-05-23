@@ -11,6 +11,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
   fullWidth?: boolean;
   icon?: React.ReactNode;
+  testID?: string;
 }
 
 const spin = keyframes`
@@ -159,6 +160,7 @@ export function Button({
   icon,
   children,
   disabled,
+  testID,
   ...props
 }: ButtonProps) {
   return (

@@ -10,6 +10,7 @@ interface CardProps {
   padding?: CardPadding;
   hoverable?: boolean;
   onClick?: () => void;
+  testID?: string;
 }
 
 const getPadding = (padding: CardPadding) => {
@@ -84,6 +85,7 @@ export function Card({
   hoverable = false,
   children,
   onClick,
+  testID,
   ...props
 }: CardProps & React.HTMLAttributes<HTMLDivElement>) {
   return (

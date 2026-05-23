@@ -6,6 +6,7 @@ interface SegmentedControlProps<T extends string> {
   options: { value: T; label: string }[];
   value: T;
   onChange: (value: T) => void;
+  testID?: string;
 }
 
 const Container = styled.div`
@@ -53,6 +54,7 @@ export function SegmentedControl<T extends string>({
   options,
   value,
   onChange,
+  testID: _testID,
 }: SegmentedControlProps<T>) {
   return (
     <Container role="tablist">

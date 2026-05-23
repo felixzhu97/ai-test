@@ -77,9 +77,10 @@ interface ImageZoomModalProps {
   src: string;
   alt?: string;
   onClose: () => void;
+  testID?: string;
 }
 
-export function ImageZoomModal({ src, alt, onClose }: ImageZoomModalProps) {
+export function ImageZoomModal({ src, alt, onClose, testID: _testID }: ImageZoomModalProps) {
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') {
       onClose();

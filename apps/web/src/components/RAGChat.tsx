@@ -1435,7 +1435,10 @@ export function RAGChat() {
         ) : (
           <>
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} isUser={msg.role === 'user'}>
+              <MessageBubble
+                key={msg.id}
+                isUser={msg.role === 'user'}
+              >
                 <MessageContent isUser={msg.role === 'user'}>
                   {msg.role === 'user' ? (
                     msg.content

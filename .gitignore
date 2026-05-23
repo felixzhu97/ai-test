@@ -46,3 +46,20 @@ volumes/
 
 # SQLite databases
 *.db
+
+# Playwright E2E
+playwright-report/
+test-results/
+playwright/.cache/
+*.png
+*.jpeg
+*.jpg
+*.webp
+*.mp4
+
+# Test coverage
+coverage/
+*.lcov
+
+# Vitest
+.vitest/
